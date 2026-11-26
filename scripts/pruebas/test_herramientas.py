@@ -649,14 +649,23 @@ class PruebasBueno(unittest.TestCase):
         self.assertEqual(mjs("validar.mjs", "--solo", "no-existe").returncode, 2)
 
     def test_herramientas_de_navegador(self):
+        # capturas y lighthouse escriben en una carpeta temporal: en salida/ quedan solo los del sitio real (antes, los
+        # reportes de fixtures/bueno pisaban salida/lighthouse/inicio-*.json del sitio con los del fixture).
+        salida = tempfile.TemporaryDirectory()
+        self.addCleanup(salida.cleanup)
+
         def una(h):
-            return h, mjs(f"{h}.mjs", "--raiz", str(BUENO))
+            extra = ["--salida", str(pathlib.Path(salida.name) / h)] if h in ("capturas", "lighthouse") else []
+            return h, mjs(f"{h}.mjs", "--raiz", str(BUENO), *extra)
 
         herramientas = BROWSER + ["capturas"] + ([] if RAPIDO else ["lighthouse"])
+        antes = {p: p.stat().st_mtime for p in (AQUI / "salida").rglob("*") if p.is_file()} if (AQUI / "salida").exists() else {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
             for h, r in ex.map(una, herramientas):
                 with self.subTest(herramienta=h):
                     self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        despues = {p: p.stat().st_mtime for p in (AQUI / "salida").rglob("*") if p.is_file()} if (AQUI / "salida").exists() else {}
+        self.assertEqual({p for p in despues if antes.get(p) != despues[p]}, set(), "las pruebas de fixtures/bueno no tocan salida/ del sitio real")
 
     def test_marcadores_avisan_y_con_estricto_fallan(self):
         with tempfile.TemporaryDirectory() as d:
