@@ -15,6 +15,7 @@
     - sin JavaScript: todo visible y sin cursores;
     - línea de etapas: antes de entrar en pantalla en escala 0 (scaleX en escritorio, scaleY en celular), y tras llegar
       a la sección termina en escala 1 con las seis marcas visibles;
+    - al imprimir (media print) sin haber bajado a las etapas y a mitad de la entrada: nada oculto ni cursores;
     - si el JS falla a mitad (main.js que pone la clase y revienta; también inicio.js y main.js a la vez; también main.js
       que no carga), a los 5.5 s todo es visible;
     - cero mensajes de error o de CSP en la consola (salvo los que provocan a propósito los casos de falla simulada).
@@ -278,6 +279,29 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         const f = (await page.evaluate(ESTADO_FINAL)).concat(l.a === 1 && l.d === 1 && l.marcas.every((o) => o === 1) ? [] : [`línea incompleta ${JSON.stringify(l)}`]);
         for (const m of f) falla(`sin JavaScript ${en}`, m);
         await cerrar(c, `consola sin JavaScript ${en}`);
+      }
+
+      /* 6b. Al imprimir (o guardar como PDF) sin haber bajado a las etapas, y a mitad de la entrada: nada oculto. */
+      {
+        const c = await abrir({ viewport: vp });
+        const page = await c.ctx.newPage();
+        await page.goto(servidor.url + ruta, { waitUntil: "domcontentloaded" });
+        await page.waitForTimeout(600); // a mitad de la entrada
+        await page.emulateMedia({ media: "print" });
+        const l = await page.evaluate(ESTADO_LINEA);
+        const hoja = await page.evaluate(() => {
+          const f = [];
+          for (const el of document.querySelectorAll(".hero__frase, .hero .pedido, .hero__acciones .boton")) {
+            const cs = getComputedStyle(el);
+            if (Number(cs.opacity) < 1) f.push(`${el.className}: opacidad ${cs.opacity}`);
+            if (cs.clipPath !== "none" && /100%/.test(cs.clipPath)) f.push(`${el.className}: recortado ${cs.clipPath}`);
+          }
+          for (const el of document.querySelectorAll(".entrada, .entrada__saltar")) if (getComputedStyle(el).display !== "none") f.push(`${el.className} se imprime`);
+          return f;
+        });
+        if (l.a !== 1 || l.d !== 1 || l.marcas.some((o) => o !== 1)) falla(`al imprimir ${en}`, `la línea de etapas debe imprimirse completa: ${JSON.stringify(l)}`);
+        for (const m of hoja) falla(`al imprimir a mitad de la entrada ${en}`, m);
+        await cerrar(c, `consola al imprimir ${en}`);
       }
     }
 
