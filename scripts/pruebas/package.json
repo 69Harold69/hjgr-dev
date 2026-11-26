@@ -1,0 +1,24 @@
+{
+  "name": "hjgr-dev-pruebas",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Herramientas de prueba del sitio hjgr.dev (solo desarrollo; el servidor no las sirve).",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "servir": "node lib/servidor.mjs",
+    "validar": "node validar.mjs",
+    "capturas": "node capturas.mjs",
+    "lighthouse": "node lighthouse.mjs",
+    "todo": "node todo.mjs"
+  },
+  "devDependencies": {
+    "chrome-launcher": "1.2.3",
+    "html-validate": "11.21.0",
+    "lighthouse": "13.6.0",
+    "parse5": "8.1.1",
+    "playwright": "1.65.0"
+  }
+}

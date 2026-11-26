@@ -1,0 +1,4 @@
+{
+  "comentario": "Hosts externos que pueden aparecer a propósito en las URLs propias del JSON-LD (perfiles, contacto). Única fuente: la leen scripts/dominio.py y scripts/pruebas/validar.mjs.",
+  "hosts": ["schema.org", "github.com", "www.linkedin.com", "linkedin.com", "wa.me", "cal.com"]
+}
