@@ -54,6 +54,7 @@ Cada prueba descubre sola las páginas (todos los `.html`, sin `scripts/`, `node
 | `node sin-js.mjs` | Con JavaScript apagado, en 1440, 768, 390 y 320 px: `<h1>` y enlaces de contacto visibles, sin scroll horizontal ni texto con opacidad 0 |
 | `node tactil.mjs` | En 390 px, todo `a`, `button` y `summary` mide al menos 44×44 px (excepción: atributo `data-tactil-excepcion`) |
 | `node foco.mjs` | Tabulando, cada elemento enfocable muestra un indicador de foco visible |
+| `node accesibilidad.mjs` | En 1280 y 390 px, con el árbol de accesibilidad de Chromium: títulos sin saltos, un `<main>`, nombre accesible = texto visible en `a`, `button` y `summary`, ningún foco tapado por la barra fija y «Saltar al contenido» que lleva al `<main>` |
 | `node contraste.mjs` | Contraste de todo el texto visible con píxeles reales, tema claro: 4.5:1, o 3:1 para texto grande |
 | `node animaciones.mjs` | Entrada del hero y línea de las seis etapas, en la home y en las páginas de giro (comparten hero): primera visita, «Saltar», movimiento reducido, sin JS y fallas simuladas |
 | `node cls.mjs [--max 0]` | Layout Instability con red limitada en 360, 390 y 412 px |

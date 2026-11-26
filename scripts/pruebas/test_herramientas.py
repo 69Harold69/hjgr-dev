@@ -658,7 +658,7 @@ class PruebasBueno(unittest.TestCase):
             extra = ["--salida", str(pathlib.Path(salida.name) / h)] if h in ("capturas", "lighthouse") else []
             return h, mjs(f"{h}.mjs", "--raiz", str(BUENO), *extra)
 
-        herramientas = BROWSER + ["capturas"] + ([] if RAPIDO else ["lighthouse"])
+        herramientas = BROWSER + ["accesibilidad", "capturas"] + ([] if RAPIDO else ["lighthouse"])
         antes = {p: p.stat().st_mtime for p in (AQUI / "salida").rglob("*") if p.is_file()} if (AQUI / "salida").exists() else {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
             for h, r in ex.map(una, herramientas):

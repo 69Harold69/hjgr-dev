@@ -3,7 +3,7 @@
   todo: UN solo comando que corre toda la suite, en orden y sin detenerse en la primera falla. Termina con
   un resumen OK/FALLA por paso y sale con 1 si cualquiera falla.
 
-  Orden: registro, validar, sin-js, tactil, foco, contraste, cls, animaciones, capturas, lighthouse, herramientas.
+  Orden: registro, validar, sin-js, tactil, foco, accesibilidad, contraste, cls, animaciones, capturas, lighthouse, herramientas.
 
   Registro (guardia): falla si en esta carpeta (o en lib/) hay un `.mjs` o un `test_*.py` que ningún paso corre
   y que no está en EXCEPCIONES. Así una prueba nueva no queda fuera del «todo» sin que nadie lo note.
@@ -38,6 +38,7 @@ const pasos = [
   ["sin-js", node, ["sin-js.mjs", "--raiz", raiz]],
   ["tactil", node, ["tactil.mjs", "--raiz", raiz]],
   ["foco", node, ["foco.mjs", "--raiz", raiz]],
+  ["accesibilidad", node, ["accesibilidad.mjs", "--raiz", raiz]],
   ["contraste", node, ["contraste.mjs", "--raiz", raiz]],
   ["cls", node, ["cls.mjs", "--raiz", raiz]],
   ["animaciones", node, ["animaciones.mjs", "--raiz", raiz]],
