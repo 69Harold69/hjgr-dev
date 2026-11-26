@@ -295,7 +295,8 @@ class PruebasServidor(unittest.TestCase):
         self.assertIn("Página no encontrada", cuerpo.decode())
 
     def test_oculta_internos(self):
-        for ruta in ["/README.md", "/scripts/sitio.json", "/scripts", "/.git/config", "/package.json", "/node_modules/x", "/package-lock.json", "/.gitignore"]:
+        for ruta in ["/README.md", "/scripts/sitio.json", "/scripts", "/.git/config", "/package.json", "/node_modules/x", "/package-lock.json", "/.gitignore",
+                     "/assets/css/LEEME.md", "/privado/codigos.csv", "/.env", "/.env.local"]:
             self.assertEqual(self.get(ruta)[0], 404, ruta)
 
     def test_cabeceras_tambien_en_404(self):
@@ -320,6 +321,11 @@ class PruebasServidor(unittest.TestCase):
 
 
 class PruebasRegistro(unittest.TestCase):
+    def test_guardia_con_sin_lighthouse(self):
+        # Saltarse Lighthouse no lo convierte en prueba sin registrar.
+        r = mjs("todo.mjs", "--solo-registro", "--sin-lighthouse")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
     def test_guardia_detecta_prueba_sin_registrar(self):
         with tempfile.TemporaryDirectory() as d:
             self.assertEqual(mjs("todo.mjs", "--solo-registro", "--carpeta", d).returncode, 0)
