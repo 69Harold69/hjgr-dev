@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
-import { RAIZ_REPO, iniciarServidor } from "./servidor.mjs";
+import { DIR_MUESTRA, RAIZ_REPO, RUTA_MUESTRA, iniciarServidor } from "./servidor.mjs";
 
 export { RAIZ_REPO, iniciarServidor };
 export const AQUI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -56,8 +56,21 @@ export function archivosDe(raiz, filtro = () => true) {
 /** Ruta de URL de un .html: index.html -> /, a/index.html -> /a/, x.html -> /x.html. */
 export const rutaDe = (archivo) => (archivo === "index.html" ? "/" : archivo.endsWith("/index.html") ? `/${archivo.slice(0, -10)}` : `/${archivo}`);
 
-/** Páginas del sitio: todos los .html de la raíz. */
+/** Páginas del sitio: todos los .html de la raíz (lo que serviría producción). */
 export const descubrirPaginas = (raiz) => archivosDe(raiz, (n) => n.endsWith(".html")).map((archivo) => ({ archivo, ruta: rutaDe(archivo) }));
+
+/**
+ * Páginas para las pruebas de navegador: las del sitio y, con la raíz del repo real, la muestra interna de
+ * componentes (scripts/pruebas/muestra/), que el servidor de pruebas expone solo en /_pruebas/muestra/.
+ * `validar` NO la incluye: no es una página del sitio.
+ */
+export const paginasDePrueba = (raiz) => {
+  const paginas = descubrirPaginas(raiz);
+  if (path.resolve(raiz) === RAIZ_REPO && paginas.length && fs.existsSync(path.join(DIR_MUESTRA, "index.html"))) {
+    paginas.push({ archivo: "scripts/pruebas/muestra/index.html", ruta: RUTA_MUESTRA });
+  }
+  return paginas;
+};
 
 export const slug = (ruta) => (ruta === "/" ? "inicio" : ruta.replace(/^\/|\/$/g, "").replace(/[^a-z0-9]+/gi, "-").replace(/-html$/, ""));
 
@@ -76,7 +89,7 @@ export function lanzarChromium(extra = {}) {
  */
 export async function conPaginas(nombre, a, fn, { navegador = true } = {}) {
   const raiz = raizDe(a);
-  const paginas = descubrirPaginas(raiz);
+  const paginas = paginasDePrueba(raiz);
   if (!paginas.length) salir(0, `OK [${nombre}] 0 páginas en ${raiz}: nada que probar`);
   const servidor = await iniciarServidor({ raiz });
   const nav = navegador ? await lanzarChromium() : null;
