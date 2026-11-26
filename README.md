@@ -51,12 +51,13 @@ Cada prueba descubre sola las páginas (todos los `.html`, sin `scripts/`, `node
 | Comando | Qué comprueba |
 | --- | --- |
 | `node validar.mjs [--solo regla,...] [--estricto]` | Reglas estáticas: `html-validate`, `csp-estatica`, `csp-readme`, `formularios`, `meta`, `json-ld` (toda página indexable lleva JSON-LD válido, con precios solo de la lista y sin reseñas, teléfono, correo, horario ni calle), `sitemap`, `imagenes`, `enlaces`, `trato` (de usted, también en `<title>`, metadatos, `alt`, `aria-label` y JSON-LD), `voz`, `precios` (además, cada fila de la tabla con sus cifras exactas y ninguna cifra sin `$`), `marcadores` (también «Foto pendiente»), `giros`, `dominio`, `versionado`, `contacto`. `--lista` las enumera |
+| `node ocultos.mjs` | El servidor de pruebas imita a Caddy en lo que no sirve: `OCULTOS` igual que producción y `/assets/muestra/`, `scripts/` y los `.md` responden 404 (solo existe la ruta de pruebas `/_pruebas/muestra/`, para la muestra interna en `scripts/pruebas/muestra/`) |
 | `node sin-js.mjs` | Con JavaScript apagado, en 1440, 768, 390 y 320 px: `<h1>` y enlaces de contacto visibles, sin scroll horizontal ni texto con opacidad 0 |
 | `node tactil.mjs` | En 390 px, todo `a`, `button` y `summary` mide al menos 44×44 px (excepción: atributo `data-tactil-excepcion`) |
 | `node foco.mjs` | Tabulando, cada elemento enfocable muestra un indicador de foco visible |
 | `node accesibilidad.mjs` | En 1280 y 390 px, con el árbol de accesibilidad de Chromium: títulos sin saltos, un `<main>`, nombre accesible = texto visible en `a`, `button` y `summary`, ningún foco tapado por la barra fija y «Saltar al contenido» que lleva al `<main>` |
 | `node contraste.mjs` | Contraste de todo el texto visible con píxeles reales, tema claro: 4.5:1, o 3:1 para texto grande |
-| `node animaciones.mjs` | Entrada del hero y línea de las seis etapas, en la home y en las páginas de giro (comparten hero): primera visita, «Saltar», movimiento reducido, sin JS y fallas simuladas |
+| `node animaciones.mjs` | Entrada del hero y línea de las seis etapas, en la home y en las páginas de giro (comparten hero): primera visita (el H1 y su párrafo siempre visibles y el LCP es el H1), «Saltar», movimiento reducido, sin JS y fallas simuladas |
 | `node cls.mjs [--max 0]` | Layout Instability con red limitada en 360, 390 y 412 px |
 | `node lighthouse.mjs [--corridas 3]` | Móvil y escritorio, las cuatro categorías, mediana de N corridas; falla por debajo de 95 |
 | `node capturas.mjs` | Capturas de página completa en 1440, 768, 390 y 320 px en `scripts/pruebas/salida/` (ignorada por git) |

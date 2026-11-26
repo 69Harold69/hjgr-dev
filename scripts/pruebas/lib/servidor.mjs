@@ -4,6 +4,7 @@
     - 404 con 404.html (y estado 404);
     - oculta .git*, *.md, .env*, privado, scripts, package.json, package-lock.json y node_modules;
     - compresión gzip/zstd de texto;
+    - única ruta extra, SOLO DE PRUEBAS: /_pruebas/muestra/ (la muestra interna de componentes; ver más abajo);
     - las MISMAS cabeceras de seguridad (CSP incluida), también en los 404.
   Si algo viola la CSP aquí, también la violará en producción.
 
@@ -83,6 +84,33 @@ function comprimir(cuerpo, codificacion, clave) {
   return c;
 }
 
+/*
+  RUTA SOLO DE PRUEBAS (no existe en producción): la muestra interna de componentes vive en
+  scripts/pruebas/muestra/ (Caddy oculta `scripts`, así que en producción no se sirve). Para que contraste,
+  capturas, etc. puedan revisarla, ESTE servidor la expone SOLO bajo /_pruebas/muestra/ y solo esa carpeta;
+  el resto de `scripts` sigue oculto y OCULTOS no cambia. Con la raíz del repo real, ni /assets/muestra/ ni
+  scripts/... responden: 404.
+*/
+export const RUTA_MUESTRA = "/_pruebas/muestra/";
+export const DIR_MUESTRA = path.join(RAIZ_REPO, "scripts/pruebas/muestra");
+function archivoMuestra(rutaUrl) {
+  if (!rutaUrl.startsWith(RUTA_MUESTRA)) return null;
+  let rel;
+  try {
+    rel = decodeURIComponent(rutaUrl.slice(RUTA_MUESTRA.length));
+  } catch {
+    return null;
+  }
+  if (rel.includes("\0") || rel.split("/").includes("..")) return null;
+  const f = path.join(DIR_MUESTRA, rel || "index.html");
+  if (!f.startsWith(DIR_MUESTRA + path.sep)) return null;
+  try {
+    return fs.statSync(f).isFile() ? f : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Archivo que serviría producción para una ruta de URL, o null. */
 export function archivoDe(raiz, rutaUrl) {
   let decodificada;
@@ -113,7 +141,7 @@ export function iniciarServidor({ raiz = RAIZ_REPO, puerto = 0, host = "127.0.0.
   const servidor = http.createServer((req, res) => {
     const url = new URL(req.url, "http://x");
     const cabeceras = { ...CABECERAS };
-    let archivo = archivoDe(raiz, url.pathname);
+    let archivo = archivoDe(raiz, url.pathname) ?? archivoMuestra(url.pathname);
     let estado = 200;
     if (!archivo) {
       archivo = path.join(raiz, "404.html");
