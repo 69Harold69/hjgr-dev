@@ -59,11 +59,25 @@
       column-gap: calc(var(--espacio-5) * 1.5);
     }
   }
+  /* Con la columna de texto angosta (1024 a 1199 px) los dos botones no caben en línea: se apilan con el mismo ancho
+     (el del más largo) en vez de quedar uno más ancho que otro. */
+  @media (min-width: 1024px) and (max-width: 1199.98px) {
+    .hero__acciones {
+      display: grid;
+      grid-template-columns: 1fr;
+      width: fit-content;
+      max-width: 100%;
+    }
+    .hero__acciones .boton {
+      flex: none;
+    }
+  }
 
   /* ---------- Hoja «Un pedido, de principio a fin» ---------- */
   .pedido {
     width: 100%;
     max-width: 28rem;
+    justify-self: center; /* por debajo de 1024 px la hoja va centrada bajo el texto */
   }
   @media (min-width: 1024px) {
     .pedido { justify-self: end; }
@@ -286,19 +300,13 @@
     font-size: var(--texto-chico);
     color: var(--ink-2);
   }
-  @media (min-width: 1100px) {
+  /* 768 px en adelante: la etapa va bajo su marca, no a su lado. */
+  @media (min-width: 768px) {
     .proceso__lista {
-      grid-template-columns: repeat(6, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-auto-rows: 1fr;
       column-gap: var(--hueco);
-    }
-    .proceso__linea {
-      inset-inline-start: calc(var(--cuadro) / 2);
-      inset-inline-end: calc((100% - 5 * var(--hueco)) / 6);
-      top: calc(var(--cuadro) / 2 - 0.5px);
-      bottom: auto;
-      width: auto;
-      height: 1px;
-      transform-origin: left;
+      row-gap: var(--espacio-4);
     }
     .proceso__etapa {
       padding-inline-start: 0;
@@ -309,6 +317,48 @@
     }
     .proceso__etapa:last-child::after {
       display: none;
+    }
+  }
+  /* 768 a 1099 px: tres columnas por dos filas. La línea es un solo elemento sin trazo propio (así el JS la anima
+     con una sola escala) y sus dos pseudo-elementos son la línea de cada fila: heredan su transform. Las filas
+     miden lo mismo (grid-auto-rows: 1fr), por eso la segunda cae a la mitad más medio hueco. */
+  @media (min-width: 768px) and (max-width: 1099.98px) {
+    .proceso__linea {
+      inset-inline-start: calc(var(--cuadro) / 2);
+      inset-inline-end: calc((100% - 2 * var(--hueco)) / 3);
+      top: 0;
+      bottom: 0;
+      width: auto;
+      background-color: transparent;
+      transform-origin: left;
+    }
+    .proceso__linea::before,
+    .proceso__linea::after {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      height: 1px;
+      background-color: var(--accent);
+    }
+    .proceso__linea::before {
+      top: calc(var(--cuadro) / 2 - 0.5px);
+    }
+    .proceso__linea::after {
+      top: calc(50% + var(--espacio-4) / 2 + var(--cuadro) / 2 - 0.5px);
+    }
+  }
+  @media (min-width: 1100px) {
+    .proceso__lista {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+    .proceso__linea {
+      inset-inline-start: calc(var(--cuadro) / 2);
+      inset-inline-end: calc((100% - 5 * var(--hueco)) / 6);
+      top: calc(var(--cuadro) / 2 - 0.5px);
+      bottom: auto;
+      width: auto;
+      height: 1px;
+      transform-origin: left;
     }
   }
 
@@ -640,10 +690,14 @@
   }
   @media (min-width: 900px) {
     .quien {
-      grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+      grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
       column-gap: var(--espacio-5);
     }
-    .foto { position: sticky; top: calc(var(--barra-alto) + var(--espacio-4)); }
+    .foto {
+      position: sticky;
+      top: calc(var(--barra-alto) + var(--espacio-4));
+      max-width: none; /* llena su columna: ya no queda un hueco vacío antes del texto */
+    }
   }
 }
 
@@ -651,7 +705,7 @@
  * Animaciones de la home (#7): entrada del hero y línea de las seis etapas. Las dirige assets/js/main.js.
  * Regla de oro: lo «oculto para animar» solo existe bajo una clase que el JS pone en <html> (js-entrada, js-etapas),
  * nunca por defecto. Sin JS, con movimiento reducido o si algo falla, todo se ve. js-entrada además trae su
- * propia salida a los 5 s (animación entrada-seguro), por si el JS que la quita no llegara a correr.
+ * propia salida a los 2.5 s (animación entrada-seguro; la retira entrada-activa si main.js arranca), por si el JS que la quita no llegara a correr.
  * Solo transform y opacity (y un recorte en el titular). Capa: componentes.
  */
 @layer componentes {
@@ -660,22 +714,30 @@
     /* ---------- Entrada del hero ---------- */
     .js-entrada .hero__frase {
       clip-path: inset(-0.1em 100% -0.1em 0);
-      animation: entrada-seguro 1ms 5s forwards;
+      animation: entrada-seguro 1ms 2.5s forwards;
     }
     .js-entrada .hero .pedido,
     .js-entrada .hero__acciones .boton {
       opacity: 0;
       transform: translateY(12px);
-      animation: entrada-seguro 1ms 5s forwards;
+      animation: entrada-seguro 1ms 2.5s forwards;
     }
     .js-entrada .hero .pedido .marcas__esq {
       opacity: 0;
-      animation: entrada-seguro 1ms 5s forwards;
+      animation: entrada-seguro 1ms 2.5s forwards;
     }
     .js-entrada .hero .etapas__item:not(:last-child)::after {
       transform: scaleY(0);
       transform-origin: top;
-      animation: entrada-seguro 1ms 5s forwards;
+      animation: entrada-seguro 1ms 2.5s forwards;
+    }
+    /* Si main.js tomó el control (entrada-activa), el respaldo del CSS se retira: la entrada normal dura 3.9 s. */
+    .js-entrada.entrada-activa .hero__frase,
+    .js-entrada.entrada-activa .hero .pedido,
+    .js-entrada.entrada-activa .hero__acciones .boton,
+    .js-entrada.entrada-activa .hero .pedido .marcas__esq,
+    .js-entrada.entrada-activa .hero .etapas__item:not(:last-child)::after {
+      animation: none;
     }
     /* Al terminar o saltar: cambio instantáneo, sin transiciones residuales. */
     .entrada-fin *,
@@ -772,7 +834,7 @@
     .js-etapas .proceso__marca {
       opacity: 0;
     }
-    @media (min-width: 1100px) {
+    @media (min-width: 768px) {
       .js-etapas .proceso__linea {
         transform: scaleX(0);
       }

@@ -27,7 +27,7 @@ function etapas() {
       html.classList.remove("js-etapas");
     };
     try {
-      const horizontal = matchMedia("(min-width: 1100px)").matches;
+      const horizontal = matchMedia("(min-width: 768px)").matches; // de 768 px en adelante la línea es horizontal (tablet: dos filas, una escala)
       const eje = horizontal ? "scaleX" : "scaleY";
       const centro = (el) => {
         const r = el.getBoundingClientRect();
@@ -85,6 +85,7 @@ function entrada() {
   if (tarde || !frases.length || !hoja || botones.length < 2 || esquinas.length < 4 || !tramos.length) {
     return abandonar();
   }
+  html.classList.add("entrada-activa"); // avisa a inicio.js y al CSS: su respaldo de 2.5 s ya no corre
 
   const chico = innerWidth < 600;
   const ancho = innerWidth;
@@ -144,7 +145,7 @@ function entrada() {
     contenedor.remove();
     saltar.remove();
     void html.offsetWidth;
-    html.classList.remove("js-entrada");
+    html.classList.remove("js-entrada", "entrada-activa");
     html.removeAttribute("data-entrada");
     void html.offsetWidth;
     html.classList.remove("entrada-fin");
@@ -291,7 +292,7 @@ function entrada() {
 }
 
 function abandonar() {
-  html.classList.remove("js-entrada");
+  html.classList.remove("js-entrada", "entrada-activa");
   html.removeAttribute("data-entrada");
 }
 
