@@ -9,7 +9,10 @@
   Secciones, en 1280×800 y 390×844: cada una se arma una sola vez y en 1.5 s como máximo (1 s en celular), con 2 o 3 cursores (2 en celular, aria-hidden,
     pointer-events:none, sin scroll horizontal); a mitad de la animación todo su texto está a opacidad 1; solo se animan transform y opacity; scroll rápido
     hasta el final: lo que quedó atrás se arma al instante y nada queda desarmado; «Saltar» y Escape; movimiento reducido, sin JS e impresión: todo armado;
-    carga con ancla a una sección intermedia: lo de arriba está armado; foco de teclado en una sección sin armar: se arma al instante; el JS falla: todo armado.
+    carga con ancla a una sección intermedia: lo de arriba está armado; foco de teclado en una sección sin armar: se arma al instante; el JS falla: todo armado;
+    umbral: con ~10 % a la vista no se arma y con ~50 % sí; impresión a mitad de las etapas y a mitad de trabajo (capturas y marcas);
+    «reducir movimiento» activado a mitad de una sección: se apaga todo al instante, sin cursores sueltos ni cambio de alto.
+  El H1 y su párrafo se revisan cuadro a cuadro desde el primer pintado (no solo a mitad de la entrada).
   Comprueba, en 1280×800 y 390×844 (cada caso en un contexto nuevo):
     - primera visita: el H1 y su párrafo visibles desde el primer pintado (opacidad 1, sin recorte, sin transform) mientras corren los cursores,
       y el elemento LCP es el H1 (decisión del dueño: el mensaje se lee al instante); 3 cursores aria-hidden con pointer-events:none, botón «Saltar» (<button>, 44 px o más),
@@ -54,6 +57,25 @@ const SONDA = () => {
   };
   new MutationObserver(mirar).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ["class"] });
   mirar();
+  // El H1 y su párrafo, cuadro a cuadro desde el primer pintado (no solo a mitad de la entrada): opacidad efectiva 1, visibles y sin recorte.
+  window.__textoOculto = [];
+  const t0 = performance.now();
+  const cuadro = () => {
+    for (const [nombre, sel] of [["h1", "h1"], ["párrafo del hero", ".hero__texto > p:not(.hero__firma)"]]) {
+      const el = document.querySelector(sel);
+      if (!el) continue;
+      let o = 1;
+      let oculto = false;
+      for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        o *= Number(cs.opacity);
+        if (cs.visibility !== "visible" || cs.clipPath !== "none" || cs.display === "none") oculto = true;
+      }
+      if ((o < 0.999 || oculto) && window.__textoOculto.length < 5) window.__textoOculto.push(`${nombre} a los ${Math.round(performance.now() - t0)} ms (opacidad ${o.toFixed(2)}${oculto ? ", oculto o recortado" : ""})`);
+    }
+    if (performance.now() - t0 < 2500) requestAnimationFrame(cuadro);
+  };
+  requestAnimationFrame(cuadro);
 };
 
 /* Estado final esperado: todo visible, sin transformaciones ni recortes residuales y sin restos de la animación. */
@@ -249,6 +271,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         await page.waitForTimeout(1500);
         // A mitad de la entrada el titular y su párrafo ya estaban a la vista, estáticos.
         for (const m of await page.evaluate(ESTADO_TEXTO)) falla(`primera visita ${en} a mitad de la entrada`, m);
+        for (const m of await page.evaluate(() => window.__textoOculto)) falla(`primera visita ${en} desde el primer pintado`, `texto del hero no visible: ${m}`);
         const dentro = await page.evaluate(() => {
           const cursores = [...document.querySelectorAll(".cursor")];
           const saltar = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Saltar");
@@ -555,12 +578,22 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         if (modo === "impresión") {
           await sinAnimacion(page);
           const lista = (await secciones(page)).filter((x) => !x.tinta);
-          await irA(page, lista[1].i);
-          await page.waitForTimeout(400);
-          await page.emulateMedia({ media: "print" });
-          if (await page.evaluate(() => [...document.querySelectorAll(".cursores-seccion, .entrada__saltar")].some((e) => getComputedStyle(e).display !== "none"))) falla(`impresión ${en}`, "los cursores o «Saltar» se imprimen");
-          const f = (await page.evaluate(ESTADO_ARMADO)).filter((m) => !/capas de cursores/.test(m));
-          for (const m of f) falla(`impresión ${en} a mitad de una sección`, m);
+          // A mitad de dos secciones distintas: la de las etapas (línea y marcas) y la de trabajo (capturas y marcas de corte, que se animan con opacity/transform).
+          const objetivos = [lista[1], lista.find((y) => y.nombre === "trabajo")].filter(Boolean);
+          for (const [k, x] of objetivos.entries()) {
+            const pagina = k === 0 ? page : await c.ctx.newPage();
+            if (k > 0) {
+              await pagina.goto(servidor.url + ruta, { waitUntil: "load" });
+              await sinAnimacion(pagina);
+            }
+            await irA(pagina, x.i);
+            await pagina.waitForTimeout(k === 0 ? 400 : 250);
+            if (!(await pagina.evaluate(() => !!document.querySelector(".cursores-seccion")))) falla(`impresión ${en} («${x.nombre}»)`, "la prueba no alcanzó a imprimir a mitad de la animación");
+            await pagina.emulateMedia({ media: "print" });
+            if (await pagina.evaluate(() => [...document.querySelectorAll(".cursores-seccion, .entrada__saltar")].some((e) => getComputedStyle(e).display !== "none"))) falla(`impresión ${en}`, "los cursores o «Saltar» se imprimen");
+            const f = (await pagina.evaluate(ESTADO_ARMADO)).filter((m) => !/capas de cursores/.test(m));
+            for (const m of f) falla(`impresión ${en} a mitad de la sección «${x.nombre}»`, m);
+          }
         } else {
           await page.waitForTimeout(500);
           const lista = await secciones(page);
@@ -602,6 +635,53 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         if (r.antes) falla(`foco ${en}`, "la sección de las preguntas ya estaba armada antes de enfocar");
         if (!r.despues || r.capa) falla(`foco ${en}`, `enfocar dentro de una sección sin armar debe armarla al instante (${JSON.stringify(r)})`);
         await cerrar(c, `consola foco ${en}`);
+      }
+
+      /* 8i. Umbral ~30 %: con un 10 % de la sección a la vista no se arma; con un 50 % sí (30 % de la sección, o de la pantalla bajo la barra si es más alta). */
+      {
+        const { c, page } = await abrirSec();
+        await sinAnimacion(page);
+        const lista = (await secciones(page)).filter((x) => !x.tinta);
+        const x = lista.find((y) => y.nombre === "como-trabajo") || lista[2];
+        const asomar = (fr) =>
+          page.evaluate(
+            ([n, f]) => {
+              const s = document.querySelectorAll("main > section")[n];
+              const ref = Math.min(s.getBoundingClientRect().height, innerHeight - 88);
+              window.scrollTo(0, window.scrollY + s.getBoundingClientRect().top - (innerHeight - f * ref));
+              const q = s.getBoundingClientRect();
+              return { visible: Math.round((Math.min(q.bottom, innerHeight) - Math.max(q.top, 88)) / ref * 100), tocada: s.classList.contains("armada") || !!s.querySelector(".cursores-seccion") };
+            },
+            [x.i, fr],
+          );
+        const poco = await asomar(0.1);
+        await page.waitForTimeout(350);
+        const tras = await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; return s.classList.contains("armada") || !!s.querySelector(".cursores-seccion"); }, x.i);
+        if (poco.tocada || tras) falla(`umbral ${en}`, `«${x.nombre}» se armó con solo ~${poco.visible} % a la vista (debe esperar ~30 %)`);
+        const bastante = await asomar(0.5);
+        await page.waitForTimeout(250);
+        const ya = await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; return s.classList.contains("armada") || !!s.querySelector(".cursores-seccion"); }, x.i);
+        if (!ya) falla(`umbral ${en}`, `«${x.nombre}» no se armó con ~${bastante.visible} % a la vista`);
+        await cerrar(c, `consola umbral ${en}`);
+      }
+
+      /* 8h. El visitante activa «reducir movimiento» a mitad de una sección: se apaga todo al instante, sin cursores sueltos ni salto de layout. */
+      {
+        const { c, page } = await abrirSec();
+        await sinAnimacion(page);
+        const lista = (await secciones(page)).filter((x) => !x.tinta);
+        const x = lista.find((y) => y.nombre === "trabajo") || lista[1];
+        await irA(page, x.i);
+        await page.waitForTimeout(250);
+        const alto0 = await page.evaluate(() => document.documentElement.scrollHeight);
+        if (!(await page.evaluate(() => !!document.querySelector(".cursores-seccion .cursor")))) falla(`reducir movimiento a mitad ${en}`, "no había cursores que apagar");
+        await page.emulateMedia({ reducedMotion: "reduce" });
+        await page.waitForTimeout(100);
+        const r = await page.evaluate(() => ({ alto: document.documentElement.scrollHeight, restos: document.querySelectorAll(".cursor, .cursores-seccion, .entrada__saltar").length }));
+        if (r.restos) falla(`reducir movimiento a mitad ${en}`, `quedan ${r.restos} cursores, capas o «Saltar» a los 100 ms`);
+        if (r.alto !== alto0) falla(`reducir movimiento a mitad ${en}`, `la página cambió de alto (${alto0} -> ${r.alto})`);
+        for (const m of await page.evaluate(ESTADO_ARMADO)) falla(`reducir movimiento a mitad ${en}`, m);
+        await cerrar(c, `consola reducir movimiento a mitad ${en}`);
       }
     }
 

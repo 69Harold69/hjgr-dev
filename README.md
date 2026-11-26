@@ -12,7 +12,7 @@ Sitio estático, HTML, CSS y JavaScript **sin paso de build**: lo que está en e
 | --- | --- | --- |
 | `index.html` | Home, una sola página larga | Pendiente (#4, #5) |
 | `vidrierias/index.html` | Página por giro. **Generada** por `scripts/giros.py` desde `index.html` y `scripts/giros/vidrierias.json`: no se edita a mano | Listo (#8) |
-| `privacidad/index.html` | Aviso de privacidad | Pendiente (#10) |
+| `privacidad/index.html` | Aviso de privacidad. La fecha «Vigente desde» la escribe `scripts/contacto.py` desde `aviso_vigente` de `scripts/sitio.json` (marcador `PENDIENTE` hasta publicar) | Listo (#10) |
 | `404.html`, `sitemap.xml`, `robots.txt` | Página de error y SEO técnico. Datos estructurados (JSON-LD) en la home y en cada página de giro | Listo (#9) |
 | `assets/css`, `assets/js`, `assets/fuentes`, `assets/img` | Estilos, scripts, fuentes e imágenes, todo alojado aquí | Pendiente (#3) |
 | `scripts/` | Herramientas (`giros.py`, `versionar.py`, `dominio.py`, `contacto.py`), datos del sitio (`sitio.json`, `hosts-externos.json`, `giros/<giro>.json`) y pruebas (`pruebas/`). El servidor no lo sirve | Listo (#2) |
@@ -57,7 +57,7 @@ Cada prueba descubre sola las páginas (todos los `.html`, sin `scripts/`, `node
 | `node foco.mjs` | Tabulando, cada elemento enfocable muestra un indicador de foco visible |
 | `node accesibilidad.mjs` | En 1280 y 390 px, con el árbol de accesibilidad de Chromium: títulos sin saltos, un `<main>`, nombre accesible = texto visible en `a`, `button` y `summary`, ningún foco tapado por la barra fija y «Saltar al contenido» que lleva al `<main>` |
 | `node contraste.mjs` | Contraste de todo el texto visible con píxeles reales, tema claro: 4.5:1, o 3:1 para texto grande |
-| `node animaciones.mjs` | Entrada del hero y armado de cada sección al hacer scroll, en la home y en las páginas de giro (comparten hero): cada carga (el H1 y su párrafo siempre visibles y el LCP es el H1), una sola vez por sección y en 1.5 s como máximo (1 s en celular), 2 o 3 cursores (2 en celular), texto siempre visible, solo `transform` y `opacity`, scroll rápido, ancla, foco, «Saltar» (también en una sección) y Escape, movimiento reducido, sin JS, impresión y fallas simuladas |
+| `node animaciones.mjs` | Entrada del hero y armado de cada sección al hacer scroll, en la home y en las páginas de giro (comparten hero): cada carga (el H1 y su párrafo visibles cuadro a cuadro desde el primer pintado y el LCP es el H1), una sola vez por sección, al entrar ~30 % (con 10 % no, con 50 % sí) y en 1.5 s como máximo (1 s en celular), 2 o 3 cursores (2 en celular), texto siempre visible, solo `transform` y `opacity`, scroll rápido, ancla, foco, «Saltar» (también en una sección) y Escape, movimiento reducido (también activado a mitad de una sección), sin JS, impresión a mitad de una sección y fallas simuladas |
 | `node cls.mjs [--max 0]` | Layout Instability con red limitada en 360, 390 y 412 px, recorriendo toda la página (lento, con las secciones armándose, y rápido) |
 | `node lighthouse.mjs [--corridas 3]` | Móvil y escritorio, las cuatro categorías, mediana de N corridas; falla por debajo de 95 |
 | `node capturas.mjs` | Capturas de página completa en 1440, 768, 390 y 320 px en `scripts/pruebas/salida/` (ignorada por git) |

@@ -38,7 +38,7 @@ Cualquier otra clave es un error (así un nombre mal escrito no pasa en silencio
 
 ## Qué cambia respecto de la home
 
-Cambian: `h1`, los textos de los tres problemas (y sus enlaces si el dato los trae), `<title>`, `meta description`, `canonical`, `og:url/title/description`, `twitter:title/description` y el nodo `Service` del JSON-LD (`@id`, `url`, `description`). Además, la sección de las seis etapas (`#sistemas`) va antes de los problemas. Los tres textos opcionales de arriba, si el dato los trae. Todo lo demás (texto bajo el titular, botones, firma, precios, preguntas, cierre, pie, animaciones, imagen para compartir) es idéntico a `index.html`.
+Cambian: `h1`, los textos de los tres problemas (y sus enlaces si el dato los trae), `<title>`, `meta description`, `canonical`, `og:url/title/description`, `twitter:title/description` y el nodo `Service` del JSON-LD (`@id`, `url`, `description`). Además, la sección de las seis etapas (`#sistemas`) va antes de los problemas. También cambian los tres textos opcionales (`hero`, `intro_etapas` y `preguntas`), si el dato los trae. Todo lo demás (botones, firma, precios, preguntas generales, cierre, pie, animaciones, imagen para compartir; y el texto bajo el titular y la entrada de las etapas si el dato no los trae) es idéntico a `index.html`.
 
 La URL de la página es `<origen>/<giro>/` (con barra final, igual que el `canonical` y el `sitemap.xml`). El origen se toma del `canonical` de `index.html`, así que `dominio.py` lo mantiene al día.
 
