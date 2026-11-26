@@ -43,3 +43,12 @@ Todo texto requiere 4.5:1.
 | `--focus` sobre `--ink` (anillo en banda de tinta) | aprox. 3.3 (no es texto; requisito 3:1) |
 
 Todos los pares de texto pedidos cumplen. `--focus` sobre `--paper-3` (4.44) no es texto, pero queda por debajo de 4.5.
+
+## Animaciones de la home (#7)
+
+Las dirige `assets/js/inicio.js` (clásico, en `<head>`; decide y pone `js-entrada` en `<html>`) y `assets/js/main.js` (módulo; dibuja los cursores y la línea de etapas). El CSS vive al final de `home.css`.
+
+- Los estados «ocultos para animar» existen SOLO bajo `.js-entrada` (hero) y `.js-etapas` (línea de etapas), y solo con `prefers-reduced-motion: no-preference`. Sin JS, con movimiento reducido o si algo falla, todo se ve.
+- `.js-entrada` trae su propia salida a los 5 s (`@keyframes entrada-seguro`, con `forwards`) por si el JS que la quita no llegara a correr; `inicio.js` además la quita con un temporizador de 5 s.
+- Solo `transform` y `opacity`; el titular se «escribe» con un `clip-path` (único recorte). Las animaciones se crean con la Web Animations API, no con `style`, así que la CSP no se toca.
+- `.entrada` (contenedor de cursores, `aria-hidden`, `pointer-events: none`), `.cursor`, `.cursor__rol`, `.entrada__todos` y `.entrada__saltar` los crea el JS y los quita al terminar.

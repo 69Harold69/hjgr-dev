@@ -642,3 +642,144 @@
     .foto { position: sticky; top: calc(var(--barra-alto) + var(--espacio-4)); }
   }
 }
+
+/*
+ * Animaciones de la home (#7): entrada del hero y línea de las seis etapas. Las dirige assets/js/main.js.
+ * Regla de oro: lo «oculto para animar» solo existe bajo una clase que el JS pone en <html> (js-entrada, js-etapas),
+ * nunca por defecto. Sin JS, con movimiento reducido o si algo falla, todo se ve. js-entrada además trae su
+ * propia salida a los 5 s (animación entrada-seguro), por si el JS que la quita no llegara a correr.
+ * Solo transform y opacity (y un recorte en el titular). Capa: componentes.
+ */
+@layer componentes {
+  @media (prefers-reduced-motion: no-preference) {
+
+    /* ---------- Entrada del hero ---------- */
+    .js-entrada .hero__frase {
+      clip-path: inset(-0.1em 100% -0.1em 0);
+      animation: entrada-seguro 1ms 5s forwards;
+    }
+    .js-entrada .hero .pedido,
+    .js-entrada .hero__acciones .boton {
+      opacity: 0;
+      transform: translateY(12px);
+      animation: entrada-seguro 1ms 5s forwards;
+    }
+    .js-entrada .hero .pedido .marcas__esq {
+      opacity: 0;
+      animation: entrada-seguro 1ms 5s forwards;
+    }
+    .js-entrada .hero .etapas__item:not(:last-child)::after {
+      transform: scaleY(0);
+      transform-origin: top;
+      animation: entrada-seguro 1ms 5s forwards;
+    }
+    /* Al terminar o saltar: cambio instantáneo, sin transiciones residuales. */
+    .entrada-fin *,
+    .entrada-fin *::before,
+    .entrada-fin *::after {
+      transition: none !important;
+    }
+
+    /* Cursores: decorativos, encima de todo y sin recibir toques ni clics. */
+    .entrada {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      overflow: clip;
+      pointer-events: none;
+    }
+    .cursor {
+      --cursor: var(--ink);
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      will-change: transform;
+      transform: translate(-100px, -100px);
+    }
+    .cursor svg {
+      display: block;
+      fill: var(--cursor);
+      stroke: var(--paper-hi);
+      stroke-width: 1px;
+      stroke-linejoin: round;
+    }
+    .cursor__rol {
+      position: absolute;
+      top: 20px;
+      left: 15px;
+      padding: 2px 8px;
+      border-radius: var(--radius);
+      background: var(--cursor);
+      color: var(--paper);
+      font-size: 0.875rem;
+      font-weight: 500;
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+    .cursor--procesos { --cursor: var(--ink); }
+    .cursor--diseno { --cursor: var(--ink-2); }
+    .cursor--backend { --cursor: var(--muted); }
+    .cursor--soporte { --cursor: var(--ink); }
+    /* El naranja, solo como línea fina: el cursor que traza la línea de la hoja y el de los botones. */
+    .cursor--procesos svg { stroke: var(--accent); }
+    .cursor--procesos .cursor__rol { box-shadow: inset 0 0 0 1px var(--accent); }
+
+    .entrada__todos {
+      position: absolute;
+      top: 0;
+      left: 0;
+      margin: 0;
+      padding: 6px 18px;
+      border-radius: var(--radius);
+      border-bottom: 1px solid var(--accent);
+      background: var(--ink);
+      color: var(--paper);
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      line-height: 1.3;
+      white-space: nowrap;
+      letter-spacing: -0.01em;
+      opacity: 0;
+    }
+
+    /* «Saltar»: botón real, siempre alcanzable, 44 px o más. */
+    .entrada__saltar {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 31;
+      min-width: var(--toque);
+      min-height: var(--toque);
+      padding: 0.625rem 1.25rem;
+      border: 1px solid var(--ink);
+      border-radius: var(--radius);
+      background: var(--paper-hi);
+      color: var(--ink);
+      font-size: var(--texto);
+      font-weight: 500;
+      line-height: 1.2;
+    }
+
+    /* ---------- Línea de las seis etapas ---------- */
+    .js-etapas .proceso__linea {
+      transform: scaleY(0);
+    }
+    .js-etapas .proceso__marca {
+      opacity: 0;
+    }
+    @media (min-width: 1100px) {
+      .js-etapas .proceso__linea {
+        transform: scaleX(0);
+      }
+    }
+  }
+
+  @keyframes entrada-seguro {
+    to {
+      opacity: 1;
+      transform: none;
+      clip-path: none;
+    }
+  }
+}
