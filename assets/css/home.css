@@ -782,4 +782,26 @@
       clip-path: none;
     }
   }
+
+  /* Al imprimir o guardar como PDF (antes de bajar a las etapas o a mitad de la entrada): todo armado y sin cursores.
+     !important porque es lo único que gana a una animación en curso (Element.animate con fill). */
+  @media print {
+    .hero__frase,
+    .hero .pedido,
+    .hero .pedido .marcas__esq,
+    .hero__acciones .boton,
+    .proceso__marca {
+      opacity: 1 !important;
+      transform: none !important;
+      clip-path: none !important;
+    }
+    .hero .etapas__item::after,
+    .proceso__linea {
+      transform: none !important;
+    }
+    .entrada,
+    .entrada__saltar {
+      display: none !important;
+    }
+  }
 }
