@@ -274,6 +274,23 @@ def diferencias(viejo, nuevo):
     return [(i + 1, x.strip()[:110], y.strip()[:110]) for i, (x, y) in enumerate(zip(a, b)) if x != y] or [(min(len(a), len(b)) + 1, "(distinto largo)", "")]
 
 
+def huerfanas(raiz, giros):
+    """Páginas generadas por este script (<dir>/index.html con el aviso) cuyo scripts/giros/<dir>.json ya no existe:
+    nadie las regenera, así que se quedarían publicadas con textos viejos sin que --check lo note."""
+    r = []
+    for pagina in sorted(raiz.glob("*/index.html")):
+        nombre = pagina.parent.name
+        if nombre in giros or nombre.startswith(".") or nombre in RESERVADOS:
+            continue
+        try:
+            inicio = pagina.read_text(encoding="utf-8")[:400]
+        except (OSError, UnicodeDecodeError):
+            continue
+        if PREFIJO_COMENTARIO in inicio:
+            r.append(pagina.relative_to(raiz).as_posix())
+    return r
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Genera <giro>/index.html desde index.html y scripts/giros/<giro>.json.")
     ap.add_argument("--check", action="store_true", help="no escribe; sale con 1 si alguna página no coincide con lo que se generaría")
@@ -281,9 +298,13 @@ def main(argv=None):
     args = ap.parse_args(argv)
     raiz = args.raiz.resolve()
     archivos = giros_de(raiz)
+    sobrantes = huerfanas(raiz, {r.stem for r in archivos})
+    for rel in sobrantes:
+        print(f"FALLA [giros] {rel} fue generada por scripts/giros.py pero ya no existe scripts/giros/{rel.split('/')[0]}.json: "
+              "bórrela (y su <loc> de sitemap.xml) o restaure el JSON")
     if not archivos:
         print("giros: 0 giro(s) en scripts/giros/; nada que generar")
-        return 0
+        return 1 if sobrantes else 0
     try:
         plantilla_ruta = raiz / "index.html"
         if not plantilla_ruta.exists():
@@ -320,7 +341,7 @@ def main(argv=None):
     if args.check and cambiados:
         print("FALLA [giros] corra: python3 scripts/giros.py")
         return 1
-    return 0
+    return 1 if sobrantes else 0
 
 
 if __name__ == "__main__":

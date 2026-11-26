@@ -359,6 +359,18 @@ class PruebasGiros(unittest.TestCase):
         self.assertEqual(self.gen().returncode, 0, "regenerar deshace la edición a mano")
         self.assertEqual(self.gen("--check").returncode, 0)
 
+    def test_check_detecta_pagina_generada_sin_su_json(self):
+        # Se borra el JSON de un giro (o se renombra) y su página generada se queda: nadie la regenera.
+        self.gen()
+        shutil.copytree(self.raiz / "vidrierias", self.raiz / "fumigadoras")
+        r = self.gen("--check")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("fumigadoras/index.html", r.stdout)
+        (self.raiz / "scripts" / "giros" / "vidrierias.json").unlink()
+        r = self.gen("--check")
+        self.assertEqual(r.returncode, 1, "sin ningún JSON, las páginas generadas que quedan también fallan")
+        self.assertIn("vidrierias/index.html", r.stdout)
+
     def test_check_detecta_plantilla_cambiada_sin_regenerar(self):
         self.gen()
         ruta = self.raiz / "index.html"
