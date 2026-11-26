@@ -25,6 +25,7 @@
     voz            sin «somos», «nuestro equipo», «nuestra agencia», «agencia»
     precios        cifras con $ solo de la lista exacta; ninguna termina en 99 o 990 ni es redonda
     marcadores     avisa de 52XXXXXXXXXX / PENDIENTE (con --estricto, falla)
+    giros          corre giros.py --check: cada <giro>/index.html es exactamente lo que generan index.html y scripts/giros/<giro>.json
     dominio, versionado, contacto   corren dominio.py, versionar.py y contacto.py con --check
 */
 import fs from "node:fs";
@@ -142,7 +143,14 @@ const reglas = {
     const hv = new HtmlValidate({
       extends: ["html-validate:recommended"],
       // Estilo puro, o ya cubierto por csp-estatica (para no fallar dos veces por lo mismo).
-      rules: { "void-style": "off", "no-trailing-whitespace": "off", "no-inline-style": "off", "doctype-style": "off" },
+      rules: {
+        "void-style": "off",
+        "no-trailing-whitespace": "off",
+        "no-inline-style": "off",
+        "doctype-style": "off",
+        // El título de la página de vidrierías (71 caracteres) es el texto acordado; el máximo por defecto es 70.
+        "long-title": ["error", { maxlength: 75 }],
+      },
     });
     const fallas = [];
     for (const p of ctx.paginas) {
@@ -378,6 +386,7 @@ const reglas = {
     return args.estricto ? { fallas: hallazgos } : { fallas: [], avisos: hallazgos };
   },
 
+  giros: (ctx) => python("giros.py", ctx),
   dominio: (ctx) => python("dominio.py", ctx),
   versionado: (ctx) => python("versionar.py", ctx),
   contacto: (ctx) => python("contacto.py", ctx),
