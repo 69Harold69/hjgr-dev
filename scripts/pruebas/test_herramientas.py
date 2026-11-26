@@ -17,6 +17,8 @@ Qué comprueba:
   3. versionar.py, dominio.py y contacto.py: idempotencia, --check, --exigir-reales, codificación del mensaje.
   4. El servidor de pruebas: try_files, 404, archivos ocultos, cabeceras (también en los 404) y compresión.
   5. La guardia de registro de todo.mjs.
+  6. giros.py (páginas por giro): idempotencia, --check, marcas faltantes, giro nuevo solo con su JSON, y que el
+     orden giros -> contacto -> dominio -> versionar es estable.
 """
 import concurrent.futures
 import gzip
@@ -70,6 +72,15 @@ CASOS = {
     "dominio-viejo": ("validar", {"dominio"}),
     "contacto-sin-escribir": ("validar", {"contacto"}),
     "versionado-viejo": ("validar", {"versionado"}),
+    "giros-desactualizado": ("validar", {"giros"}),
+    "json-ld-precio-inventado": ("validar", {"json-ld"}),
+    "json-ld-campo-prohibido": ("validar", {"json-ld"}),
+    "json-ld-ausente": ("validar", {"json-ld"}),
+    "tuteo-atributo": ("validar", {"trato"}),
+    "precio-sin-signo": ("validar", {"precios"}),
+    "precio-en-otra-fila": ("validar", {"precios"}),
+    "json-ld-precio-en-otra-fila": ("validar", {"json-ld"}),
+    "foto-pendiente": ("validar", {"marcadores"}),  # con --estricto; sin él, solo avisa
     "contraste-bajo": ("contraste", set()),
     "boton-chico": ("tactil", set()),
     "sin-outline": ("foco", set()),
@@ -226,13 +237,13 @@ class PruebasContacto(SitioTemporal):
         self.assertEqual(py("contacto.py", "--check", "--raiz", str(self.raiz)).returncode, 0)
 
     def test_idempotente_y_orden_de_atributos(self):
-        self.escribir("index.html", self.leer("index.html").replace('<a class="boton" data-contacto="cal" href="https://cal.com/ejemplo">', '<a data-contacto="cal" class="boton" href="viejo">'))
+        self.escribir("index.html", self.leer("index.html").replace('<a class="boton" data-contacto="cal" href="https://cal.com/ejemplo" target="_blank" rel="noopener">', '<a data-contacto="cal" class="boton" href="viejo">'))
         self.assertEqual(py("contacto.py", "--raiz", str(self.raiz)).returncode, 0)
         antes = instantanea(self.raiz)
         r = py("contacto.py", "--raiz", str(self.raiz))
         self.assertIn("0 archivo(s)", r.stdout)
         self.assertEqual(antes, instantanea(self.raiz))
-        self.assertIn('<a data-contacto="cal" class="boton" href="https://cal.com/ejemplo">', self.leer("index.html"))
+        self.assertIn('<a data-contacto="cal" class="boton" href="https://cal.com/ejemplo" target="_blank" rel="noopener">', self.leer("index.html"))
 
     def test_marcadores_avisan_y_exigir_reales_falla(self):
         sitio = json.loads(self.leer("scripts/sitio.json"))
@@ -250,6 +261,75 @@ class PruebasContacto(SitioTemporal):
         r = py("contacto.py", "--exigir-reales", "--check", "--raiz", str(self.raiz))
         self.assertEqual(r.returncode, 0, r.stdout)
 
+    def test_exigir_reales_falla_si_una_pagina_conserva_la_foto_pendiente(self):
+        # sitio.json ya trae datos reales, pero la página sigue con el hueco de la foto: no se puede publicar.
+        self.escribir("index.html", self.leer("index.html").replace("<img ", '<div class="foto__espacio">Foto pendiente</div>\n<img ', 1))
+        r = py("contacto.py", "--exigir-reales", "--raiz", str(self.raiz))
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("Foto pendiente", r.stdout)
+
+    def test_exigir_reales_falla_si_una_pagina_conserva_un_marcador_escrito_a_mano(self):
+        p = self.raiz / "privacidad" / "index.html"
+        p.write_text(p.read_text(encoding="utf-8").replace("</main>", '<p><a href="https://cal.com/PENDIENTE">Llamada</a></p></main>'), encoding="utf-8")
+        r = py("contacto.py", "--exigir-reales", "--raiz", str(self.raiz))
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("privacidad/index.html", r.stdout)
+
+    def test_cal_abre_en_pestana_nueva(self):
+        self.escribir("index.html", self.leer("index.html").replace('<a class="boton" data-contacto="cal" href="https://cal.com/ejemplo" target="_blank" rel="noopener">', '<a class="boton" data-contacto="cal" href="viejo">'))
+        self.assertEqual(py("contacto.py", "--check", "--raiz", str(self.raiz)).returncode, 1)
+        self.assertEqual(py("contacto.py", "--raiz", str(self.raiz)).returncode, 0)
+        self.assertIn('<a class="boton" data-contacto="cal" href="https://cal.com/ejemplo" target="_blank" rel="noopener">', self.leer("index.html"))
+        # idempotente: no duplica atributos
+        r = py("contacto.py", "--raiz", str(self.raiz))
+        self.assertIn("0 archivo(s)", r.stdout)
+        self.assertEqual(self.leer("index.html").count("target="), 1)
+
+    def test_correo_sale_de_sitio_json(self):
+        sitio = json.loads(self.leer("scripts/sitio.json"))
+        sitio["correo"] = "hola@ejemplo.test"
+        self.escribir("scripts/sitio.json", json.dumps(sitio))
+        self.escribir("index.html", self.leer("index.html").replace("</main>", '<p><a data-contacto="correo">hola@ejemplo.test</a></p></main>'))
+        self.assertEqual(py("contacto.py", "--raiz", str(self.raiz)).returncode, 0)
+        self.assertIn('<a href="mailto:hola@ejemplo.test" data-contacto="correo">', self.leer("index.html"))
+
+    def pagina_con_vigencia(self, valor):
+        sitio = json.loads(self.leer("scripts/sitio.json"))
+        sitio["aviso_vigente"] = valor
+        self.escribir("scripts/sitio.json", json.dumps(sitio))
+        p = self.raiz / "privacidad" / "index.html"
+        p.write_text(p.read_text(encoding="utf-8").replace("</main>", '<p>Vigente desde: <time data-aviso-vigente>PENDIENTE</time></p></main>'), encoding="utf-8")
+
+    def test_aviso_vigente_se_escribe_como_fecha_legible(self):
+        self.pagina_con_vigencia("2026-11-26")
+        self.assertEqual(py("contacto.py", "--check", "--raiz", str(self.raiz)).returncode, 1)
+        r = py("contacto.py", "--raiz", str(self.raiz))
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn('<time data-aviso-vigente datetime="2026-11-26">26 de noviembre de 2026</time>', self.leer("privacidad/index.html"))
+        self.assertEqual(py("contacto.py", "--check", "--exigir-reales", "--raiz", str(self.raiz)).returncode, 0)
+        sitio = json.loads(self.leer("scripts/sitio.json"))
+        sitio["aviso_vigente"] = "2027-03-01"
+        self.escribir("scripts/sitio.json", json.dumps(sitio))
+        self.assertEqual(py("contacto.py", "--raiz", str(self.raiz)).returncode, 0)
+        self.assertIn('datetime="2027-03-01">1 de marzo de 2027</time>', self.leer("privacidad/index.html"))
+
+    def test_aviso_vigente_pendiente_falla_con_exigir_reales(self):
+        self.pagina_con_vigencia("PENDIENTE")
+        r = py("contacto.py", "--raiz", str(self.raiz))
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("aviso_vigente", r.stdout)
+        self.assertIn("<time data-aviso-vigente>PENDIENTE</time>", self.leer("privacidad/index.html"))
+        r = py("contacto.py", "--exigir-reales", "--raiz", str(self.raiz))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("aviso_vigente", r.stdout)
+
+    def test_aviso_vigente_invalido_falla(self):
+        for malo in ("26/11/2026", "2026-13-40", "2026-02-30"):
+            self.pagina_con_vigencia(malo)
+            r = py("contacto.py", "--raiz", str(self.raiz))
+            self.assertEqual(r.returncode, 1, malo)
+            self.assertIn("aviso_vigente", r.stdout)
+
     def test_tipo_desconocido_falla(self):
         self.escribir("index.html", self.leer("index.html").replace('data-contacto="cal"', 'data-contacto="fax"'))
         self.assertEqual(py("contacto.py", "--raiz", str(self.raiz)).returncode, 1)
@@ -260,6 +340,322 @@ class PruebasContacto(SitioTemporal):
         sitio = (SCRIPTS / "sitio.json").read_text(encoding="utf-8")
         hay_marcadores = "52XXXXXXXXXX" in sitio or "PENDIENTE" in sitio
         self.assertEqual(py("contacto.py", "--check", "--exigir-reales").returncode, 1 if hay_marcadores else 0)
+
+
+REPO = SCRIPTS.parent
+
+
+class PruebasAvisoDePrivacidad(unittest.TestCase):
+    """El sitio real: /privacidad/ existe, está en el sitemap y todas las páginas la enlazan desde el pie."""
+
+    def test_pagina_sitemap_y_pie_de_todas(self):
+        self.assertTrue((REPO / "privacidad" / "index.html").exists())
+        self.assertIn("<loc>https://hjgr.dev/privacidad/</loc>", (REPO / "sitemap.xml").read_text(encoding="utf-8"))
+        paginas = ["index.html", "404.html", "privacidad/index.html", "vidrierias/index.html"]
+        for p in paginas:
+            texto = (REPO / p).read_text(encoding="utf-8")
+            pie = texto[texto.index('<footer class="pie">'):]
+            self.assertIn('href="/privacidad/">Aviso de privacidad</a>', pie, p)
+
+    def test_la_fecha_de_vigencia_tiene_su_marcador(self):
+        self.assertIn("aviso_vigente", json.loads((SCRIPTS / "sitio.json").read_text(encoding="utf-8")))
+        self.assertIn("data-aviso-vigente", (REPO / "privacidad" / "index.html").read_text(encoding="utf-8"))
+
+
+def copiar_repo_para_giros(destino):
+    """Copia mínima del sitio real (HTML, assets de CSS/JS, scripts y datos) para probar el orden de las herramientas."""
+    destino = pathlib.Path(destino)
+    destino.mkdir(parents=True, exist_ok=True)
+    for rel in ["index.html", "vidrierias", "sitemap.xml", "robots.txt", "README.md", "assets/css", "assets/js"]:
+        origen = REPO / rel
+        if origen.is_dir():
+            shutil.copytree(origen, destino / rel, dirs_exist_ok=True)
+        elif origen.exists():
+            (destino / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(origen, destino / rel)
+    (destino / "scripts").mkdir(exist_ok=True)
+    shutil.copy2(SCRIPTS / "sitio.json", destino / "scripts" / "sitio.json")
+    shutil.copytree(SCRIPTS / "giros", destino / "scripts" / "giros", dirs_exist_ok=True)
+    return destino
+
+
+class PruebasGiros(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.raiz = pathlib.Path(self._tmp.name) / "sitio"
+        # Solo la plantilla (index.html real) y los datos: las páginas de giro se generan aquí.
+        (self.raiz / "scripts").mkdir(parents=True)
+        shutil.copy2(REPO / "index.html", self.raiz / "index.html")
+        shutil.copytree(SCRIPTS / "giros", self.raiz / "scripts" / "giros")
+
+    def gen(self, *args):
+        return py("giros.py", "--raiz", str(self.raiz), *args)
+
+    def leer(self, rel):
+        return (self.raiz / rel).read_text(encoding="utf-8")
+
+    def test_genera_la_pagina_de_vidrierias(self):
+        r = self.gen()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        pagina = self.leer("vidrierias/index.html")
+        self.assertTrue(pagina.startswith("<!doctype html>"))
+        self.assertIn("Generado por scripts/giros.py desde index.html y scripts/giros/vidrierias.json. No editar a mano.", pagina[:300])
+        self.assertNotIn("data-giro", pagina, "las marcas no se copian a la página generada")
+
+    def test_idempotente_y_check_pasa(self):
+        self.gen()
+        antes = instantanea(self.raiz)
+        r = self.gen()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(antes, instantanea(self.raiz), "una segunda corrida no cambia nada")
+        self.assertEqual(self.gen("--check").returncode, 0)
+
+    def test_check_sin_pagina_falla_y_no_escribe(self):
+        antes = instantanea(self.raiz)
+        r = self.gen("--check")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("vidrierias/index.html", r.stdout)
+        self.assertEqual(antes, instantanea(self.raiz), "--check no escribe")
+
+    def test_check_detecta_pagina_editada_a_mano(self):
+        self.gen()
+        ruta = self.raiz / "vidrierias" / "index.html"
+        ruta.write_text(ruta.read_text(encoding="utf-8").replace("Cada vendedor cotiza distinto.", "Cada vendedor cotiza igual."), encoding="utf-8")
+        antes = instantanea(self.raiz)
+        r = self.gen("--check")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("vidrierias/index.html", r.stdout)
+        self.assertIn("python3 scripts/giros.py", r.stdout)
+        self.assertEqual(antes, instantanea(self.raiz))
+        self.assertEqual(self.gen().returncode, 0, "regenerar deshace la edición a mano")
+        self.assertEqual(self.gen("--check").returncode, 0)
+
+    def test_check_detecta_pagina_generada_sin_su_json(self):
+        # Se borra el JSON de un giro (o se renombra) y su página generada se queda: nadie la regenera.
+        self.gen()
+        shutil.copytree(self.raiz / "vidrierias", self.raiz / "fumigadoras")
+        r = self.gen("--check")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("fumigadoras/index.html", r.stdout)
+        (self.raiz / "scripts" / "giros" / "vidrierias.json").unlink()
+        r = self.gen("--check")
+        self.assertEqual(r.returncode, 1, "sin ningún JSON, las páginas generadas que quedan también fallan")
+        self.assertIn("vidrierias/index.html", r.stdout)
+
+    def test_check_detecta_plantilla_cambiada_sin_regenerar(self):
+        self.gen()
+        ruta = self.raiz / "index.html"
+        ruta.write_text(ruta.read_text(encoding="utf-8").replace("<p>hjgr.dev</p>", "<p>hjgr.dev, 2026</p>"), encoding="utf-8")
+        self.assertEqual(self.gen("--check").returncode, 1)
+        self.gen()
+        self.assertEqual(self.gen("--check").returncode, 0)
+        self.assertIn("<p>hjgr.dev, 2026</p>", self.leer("vidrierias/index.html"), "el resto de la página sigue a la plantilla")
+
+    def test_falta_una_marca_falla_con_mensaje_claro_y_no_escribe(self):
+        for marca in ["h1", "hero", "intro-etapas", "faq", "problemas", "problema", "etapas", "json-ld"]:
+            with self.subTest(marca=marca):
+                original = self.leer("index.html")
+                self.assertIn(f'data-giro="{marca}"', original, f"la plantilla debe tener la marca {marca}")
+                self.raiz.joinpath("index.html").write_text(original.replace(f' data-giro="{marca}"', ""), encoding="utf-8")
+                r = self.gen()
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(f'data-giro="{marca}"', r.stdout + r.stderr)
+                self.assertIn("index.html", r.stdout + r.stderr)
+                self.assertFalse((self.raiz / "vidrierias").exists(), "nunca una página a medias")
+                self.raiz.joinpath("index.html").write_text(original, encoding="utf-8")
+
+    def test_falta_un_dato_o_sobra_una_clave_falla_con_mensaje_claro(self):
+        ruta = self.raiz / "scripts" / "giros" / "vidrierias.json"
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+        for cambio, esperado in [
+            (lambda d: d.pop("h1"), "h1"),
+            (lambda d: d.update(titulo=""), "titulo"),
+            (lambda d: d.update(problemas=d["problemas"][:2]), "problemas"),
+            (lambda d: d.update(inventada="x"), "inventada"),
+            (lambda d: d.update(hero=""), "hero"),
+            (lambda d: d.update(preguntas=[{"pregunta": "¿Sí?"}]), "preguntas"),
+            (lambda d: d.update(preguntas="x"), "preguntas"),
+        ]:
+            malo = json.loads(json.dumps(datos))
+            cambio(malo)
+            ruta.write_text(json.dumps(malo, ensure_ascii=False), encoding="utf-8")
+            r = self.gen()
+            self.assertNotEqual(r.returncode, 0, esperado)
+            self.assertIn(esperado, r.stdout + r.stderr)
+            self.assertFalse((self.raiz / "vidrierias").exists())
+
+    def test_un_giro_nuevo_se_genera_solo_con_su_json(self):
+        nuevo = {
+            "h1": ["Pedidos y rutas", "en un solo sistema."],
+            "titulo": "Sistemas para giro de prueba | Harold García",
+            "descripcion": "Descripción de prueba del giro nuevo.",
+            "problemas": [
+                {"texto": "Primer problema de prueba."},
+                {"texto": "Segundo problema de prueba.", "enlace": {"texto": "Sistemas internos", "href": "#sistemas"}},
+                {"texto": "Tercer problema de prueba."},
+            ],
+        }
+        (self.raiz / "scripts" / "giros" / "giro-de-prueba.json").write_text(json.dumps(nuevo, ensure_ascii=False), encoding="utf-8")
+        self.assertEqual(self.gen().returncode, 0)
+        pagina = self.leer("giro-de-prueba/index.html")
+        self.assertIn("<title>Sistemas para giro de prueba | Harold García</title>", pagina)
+        self.assertIn('<link rel="canonical" href="https://hjgr.dev/giro-de-prueba/">', pagina)
+        self.assertIn("Segundo problema de prueba.", pagina)
+        self.assertIn("scripts/giros/giro-de-prueba.json", pagina)
+        # Sin enlace en el dato, la fila conserva el de la home (tercera fila: «Webs», #trabajo).
+        self.assertIn('href="#trabajo">Webs</a>', pagina)
+        self.assertEqual(self.gen("--check").returncode, 0)
+        self.assertTrue((self.raiz / "vidrierias" / "index.html").exists(), "los demás giros también se generan")
+
+    def test_no_pisa_una_pagina_que_no_es_generada_ni_usa_nombres_reservados(self):
+        (self.raiz / "hecha-a-mano").mkdir()
+        (self.raiz / "hecha-a-mano" / "index.html").write_text("<!doctype html>", encoding="utf-8")
+        datos = (self.raiz / "scripts" / "giros" / "vidrierias.json").read_text(encoding="utf-8")
+        for nombre in ["hecha-a-mano", "assets", "Con Mayusculas"]:
+            ruta = self.raiz / "scripts" / "giros" / f"{nombre}.json"
+            ruta.write_text(datos, encoding="utf-8")
+            r = self.gen()
+            self.assertNotEqual(r.returncode, 0, nombre)
+            self.assertIn(nombre, r.stdout + r.stderr)
+            ruta.unlink()
+        self.assertEqual((self.raiz / "hecha-a-mano" / "index.html").read_text(encoding="utf-8"), "<!doctype html>")
+        self.assertFalse((self.raiz / "vidrierias").exists())
+
+    def test_los_textos_de_la_home_no_sobreviven_y_el_orden_es_el_pedido(self):
+        self.gen()
+        home = self.leer("index.html")
+        pagina = self.leer("vidrierias/index.html")
+        for texto in [
+            "Su negocio ya funciona.",
+            "Lo que falla es el control.",
+            "Nadie sabe en qué va el pedido hasta que el cliente llama enojado.",
+            "Sus clientes preguntan lo mismo por WhatsApp todo el día.",
+            "Su web no existe, o da pena mandarla.",
+            "Harold García: sistemas y webs para negocios en Guadalajara",
+            'href="https://hjgr.dev/"',
+        ]:
+            self.assertIn(texto, home, texto)
+            self.assertNotIn(texto, pagina, f"«{texto}» de la home sobrevive en la página de giro")
+        for texto in [
+            "Cotizaciones, cortes y entregas",
+            "en un solo sistema.",
+            "Cada vendedor cotiza distinto.",
+            "Se tira vidrio y aluminio porque el corte se planea al ojo.",
+            "Nadie sabe si el pedido ya salió del templado.",
+            "<title>Sistemas para vidrierías: cotización, cortes y entregas | Harold García</title>",
+            '<link rel="canonical" href="https://hjgr.dev/vidrierias/">',
+            '<meta property="og:url" content="https://hjgr.dev/vidrierias/">',
+            '<meta property="og:title" content="Sistemas para vidrierías: cotización, cortes y entregas | Harold García">',
+            '<meta name="twitter:title" content="Sistemas para vidrierías: cotización, cortes y entregas | Harold García">',
+        ]:
+            self.assertIn(texto, pagina, texto)
+        descripcion = "Un solo sistema para cotizar igual, planear los cortes y saber en qué etapa va cada pedido. Para vidrierías que hoy se organizan con Excel, libretas y WhatsApp."
+        for etiqueta in ['<meta name="description" content="', '<meta property="og:description" content="', '<meta name="twitter:description" content="']:
+            self.assertIn(etiqueta + descripcion + '">', pagina)
+        self.assertEqual(len(re.findall(r"<h1\b", pagina)), 1)
+        self.assertLess(pagina.index('id="sistemas"'), pagina.index('id="problemas-titulo"'), "las etapas van antes de los problemas")
+        self.assertGreater(pagina.index('id="sistemas"'), pagina.index("</section>", pagina.index('class="hero')), "y después del hero")
+        self.assertEqual(len(re.findall(r'<a class="enlace-accion" href="#sistemas">Sistemas internos</a>', pagina)), 3 + 0)
+        self.assertIn('<a class="barra__marca nombre" href="/">Harold García</a>', pagina)
+        # Lo demás es idéntico: precios, preguntas, cierre y pie.
+        for trozo in ["<h2 id=\"precios-titulo\">", "Preguntas frecuentes", "¿Platicamos?", "Harold de Jesús García Ramírez, 2026", "$48,760"]:
+            self.assertEqual(home.count(trozo), pagina.count(trozo), trozo)
+        # La imagen para compartir es la misma.
+        self.assertEqual(re.search(r'og:image" content="([^"]*)"', home).group(1), re.search(r'og:image" content="([^"]*)"', pagina).group(1))
+
+    def test_textos_propios_del_giro_solo_en_su_pagina(self):
+        # Texto del hero, entrada de las etapas y preguntas propias ANTES de las generales; la home no cambia.
+        self.gen()
+        home = self.leer("index.html")
+        pagina = self.leer("vidrierias/index.html")
+        hero = "Hago sistemas para vidrierías y talleres de aluminio: cotización con medidas y cortes, órdenes al taller y agenda de instalaciones, en un solo lugar."
+        parrafo = "He programado sistemas para vidrierías que calculan el precio con medidas, tipo de vidrio y herrajes, mandan la orden al taller, siguen el templado y agendan la instalación. También planean los cortes de cada hoja para desperdiciar menos."
+        preguntas = [
+            ("¿Sirve si tengo varias sucursales?", "Sí. Cada sucursal cotiza con los mismos precios y el taller ve los pedidos de todas."),
+            ("¿Mis vendedores tienen que saber de computación?", "No. Se diseña con ellos, para que cotizar sea más rápido que hacerlo a mano."),
+            ("¿Puedo empezar solo con el cotizador?", "Sí. Muchos empiezan por ahí y después agregan taller e instalaciones."),
+        ]
+        self.assertIn(f"<p>{hero}</p>", pagina)
+        self.assertNotIn("Hago sistemas, automatizaciones y webs", pagina)
+        self.assertIn("Hago sistemas, automatizaciones y webs", home)
+        self.assertEqual(pagina.count(parrafo), 1)
+        # El párrafo propio vive DENTRO de la sección de etapas, en lugar de la entrada genérica; no hay sección suelta.
+        generica = "He programado sistemas que siguen cada pedido de principio a fin"
+        ini = pagina.index('id="sistemas"')
+        fin = pagina.index("</section>", ini)
+        self.assertGreater(pagina.index(parrafo), pagina.index('id="sistemas-titulo"'))
+        self.assertLess(pagina.index(parrafo), pagina.index('class="proceso"'))
+        self.assertTrue(ini < pagina.index(parrafo) < fin)
+        self.assertIn(f'<p class="seccion__intro">{parrafo}</p>', pagina)
+        self.assertNotIn(generica, pagina)
+        self.assertIn(generica, home)
+        self.assertEqual(pagina.count('class="seccion__intro"'), home.count('class="seccion__intro"'), "ninguna sección suelta con intro")
+        self.assertEqual(pagina.count('<section class="seccion">'), home.count('<section class="seccion">'))
+        posiciones = []
+        for q, r in preguntas:
+            trozo = f'<details class="faq__item">\n              <summary>{q}</summary>\n              <p>{r}</p>\n            </details>'
+            self.assertIn(trozo, pagina, q)
+            self.assertNotIn(q, home)
+            posiciones.append(pagina.index(trozo))
+        self.assertEqual(posiciones, sorted(posiciones))
+        self.assertLess(posiciones[-1], pagina.index("<summary>¿Emite factura?</summary>"), "las propias van antes de las generales")
+        self.assertEqual(pagina.count('class="faq__item"'), home.count('class="faq__item"') + 3)
+        self.assertNotIn("FAQPage", pagina)
+        self.assertNotIn(parrafo, home)
+
+    def test_json_ld_de_la_pagina_de_giro_usa_su_url_y_descripcion(self):
+        self.gen()
+        def datos(rel):
+            m = re.search(r'<script type="application/ld\+json"[^>]*>(.*?)</script>', self.leer(rel), re.S)
+            return json.loads(m.group(1))["@graph"]
+        home = {n["@type"]: n for n in datos("index.html")}
+        giro = {n["@type"]: n for n in datos("vidrierias/index.html")}
+        self.assertEqual(home["Service"]["url"], "https://hjgr.dev/")
+        self.assertEqual(giro["Service"]["url"], "https://hjgr.dev/vidrierias/")
+        self.assertIn("vidrierías", giro["Service"]["description"])
+        self.assertEqual(home["Person"], giro["Person"])
+        self.assertEqual(home["WebSite"], giro["WebSite"])
+        self.assertEqual(home["Service"]["hasOfferCatalog"], giro["Service"]["hasOfferCatalog"])
+
+    def test_el_sitio_real_esta_al_dia(self):
+        r = py("giros.py", "--check")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_orden_de_las_herramientas_es_estable(self):
+        # giros -> contacto -> dominio -> versionar, dos veces; la segunda no cambia nada y `giros --check` pasa.
+        with tempfile.TemporaryDirectory() as d:
+            raiz = copiar_repo_para_giros(pathlib.Path(d) / "s")
+            sitio = json.loads((raiz / "scripts" / "sitio.json").read_text(encoding="utf-8"))
+            sitio.update(whatsapp="5215512345678", cal="https://cal.com/ejemplo")
+            (raiz / "scripts" / "sitio.json").write_text(json.dumps(sitio), encoding="utf-8")
+            (raiz / "assets" / "css" / "home.css").write_text((raiz / "assets" / "css" / "home.css").read_text(encoding="utf-8") + "\n/* cambio */\n", encoding="utf-8")
+
+            def ciclo(*extra_dominio):
+                for script, args in [("giros.py", []), ("contacto.py", []), ("dominio.py", list(extra_dominio)), ("versionar.py", [])]:
+                    r = py(script, "--raiz", str(raiz), *args)
+                    self.assertEqual(r.returncode, 0, f"{script}: {r.stdout}{r.stderr}")
+
+            ciclo("--origen", "https://otro.test")
+            primera = instantanea(raiz)
+            self.assertIn("5215512345678", primera["vidrierias/index.html"].decode())
+            self.assertIn("https://otro.test/vidrierias/", primera["vidrierias/index.html"].decode())
+            self.assertEqual(py("giros.py", "--check", "--raiz", str(raiz)).returncode, 0)
+            ciclo("--origen", "https://otro.test")
+            self.assertEqual(primera, instantanea(raiz), "correr los cuatro otra vez no cambia nada")
+            for script in ["giros.py", "contacto.py", "dominio.py", "versionar.py"]:
+                self.assertEqual(py(script, "--check", "--raiz", str(raiz)).returncode, 0, script)
+
+
+class PruebasReglaGiros(unittest.TestCase):
+    def test_la_regla_giros_existe_y_pasa_en_el_sitio_real(self):
+        r = mjs("validar.mjs", "--raiz", str(REPO), "--solo", "giros", "--json")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue(json.loads(r.stdout)["reglas"]["giros"]["ok"])
+
+    def test_la_regla_giros_pasa_si_no_hay_giros(self):
+        r = mjs("validar.mjs", "--raiz", str(BUENO), "--solo", "giros", "--json")
+        self.assertTrue(json.loads(r.stdout)["reglas"]["giros"]["ok"], r.stdout)
 
 
 class PruebasServidor(unittest.TestCase):
@@ -312,6 +708,21 @@ class PruebasServidor(unittest.TestCase):
             for k, v in esperadas.items():
                 self.assertEqual(cab.get(k), v, f"{ruta} {k}")
 
+    def test_todo_archivo_publico_del_sitio_real_tiene_su_tipo(self):
+        # Con X-Content-Type-Options: nosniff, un tipo genérico (octet-stream) puede hacer que el navegador rechace el
+        # archivo; el servidor de pruebas debe dar el mismo tipo que daría producción a todo lo que se sirve.
+        self._parar()
+        self.proc = subprocess.Popen(["node", str(AQUI / "lib/servidor.mjs"), "--raiz", str(REPO)], stdout=subprocess.PIPE, text=True)
+        self.base = re.search(r"(http://127\.0\.0\.1:\d+)", self.proc.stdout.readline()).group(1)
+        archivos = [p for p in (REPO / "assets").rglob("*") if p.is_file()] + [REPO / "favicon.ico"]
+        for p in archivos:
+            ruta = "/" + p.relative_to(REPO).as_posix()
+            estado, cab, _ = self.get(ruta)
+            if estado == 404:
+                continue  # oculto a propósito (*.md)
+            with self.subTest(ruta=ruta):
+                self.assertNotEqual(cab.get("Content-Type", ""), "application/octet-stream")
+
     def test_compresion(self):
         _, cab, cuerpo = self.get("/assets/css/estilos.css", **{"Accept-Encoding": "gzip"})
         self.assertEqual(cab.get("Content-Encoding"), "gzip")
@@ -353,14 +764,23 @@ class PruebasBueno(unittest.TestCase):
         self.assertEqual(mjs("validar.mjs", "--solo", "no-existe").returncode, 2)
 
     def test_herramientas_de_navegador(self):
-        def una(h):
-            return h, mjs(f"{h}.mjs", "--raiz", str(BUENO))
+        # capturas y lighthouse escriben en una carpeta temporal: en salida/ quedan solo los del sitio real (antes, los
+        # reportes de fixtures/bueno pisaban salida/lighthouse/inicio-*.json del sitio con los del fixture).
+        salida = tempfile.TemporaryDirectory()
+        self.addCleanup(salida.cleanup)
 
-        herramientas = BROWSER + ["capturas"] + ([] if RAPIDO else ["lighthouse"])
+        def una(h):
+            extra = ["--salida", str(pathlib.Path(salida.name) / h)] if h in ("capturas", "lighthouse") else []
+            return h, mjs(f"{h}.mjs", "--raiz", str(BUENO), *extra)
+
+        herramientas = BROWSER + ["accesibilidad", "capturas"] + ([] if RAPIDO else ["lighthouse"])
+        antes = {p: p.stat().st_mtime for p in (AQUI / "salida").rglob("*") if p.is_file()} if (AQUI / "salida").exists() else {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
             for h, r in ex.map(una, herramientas):
                 with self.subTest(herramienta=h):
                     self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        despues = {p: p.stat().st_mtime for p in (AQUI / "salida").rglob("*") if p.is_file()} if (AQUI / "salida").exists() else {}
+        self.assertEqual({p for p in despues if antes.get(p) != despues[p]}, set(), "las pruebas de fixtures/bueno no tocan salida/ del sitio real")
 
     def test_marcadores_avisan_y_con_estricto_fallan(self):
         with tempfile.TemporaryDirectory() as d:

@@ -1,0 +1,15 @@
+/* Solo para la página de muestra: ayudas de revisión, no forma parte del sistema. */
+.muestra__lead { font-size: var(--texto); max-width: 40rem; }
+.muestra__fila { display: flex; flex-wrap: wrap; gap: var(--espacio-2); align-items: center; }
+.muestra__hover { transform: translateY(-1px); box-shadow: inset 0 0 0 1px var(--ink); }
+.muestra__activo { transform: translateY(1px); }
+.muestra__foco { outline: 2px solid var(--focus); outline-offset: 2px; }
+.muestra__abierta .marcas__esq--nw::before { transform: translateX(calc(-1 * var(--marca-abre))); }
+.muestra__abierta .marcas__esq--nw::after { transform: translateY(calc(-1 * var(--marca-abre))); }
+.muestra__abierta .marcas__esq--ne::before { transform: translateX(var(--marca-abre)); }
+.muestra__abierta .marcas__esq--ne::after { transform: translateY(calc(-1 * var(--marca-abre))); }
+.muestra__abierta .marcas__esq--sw::before { transform: translateX(calc(-1 * var(--marca-abre))); }
+.muestra__abierta .marcas__esq--sw::after { transform: translateY(var(--marca-abre)); }
+.muestra__abierta .marcas__esq--se::before { transform: translateX(var(--marca-abre)); }
+.muestra__abierta .marcas__esq--se::after { transform: translateY(var(--marca-abre)); }
+.muestra__titulo-1 { font-size: var(--titulo-1); }

@@ -1,0 +1,16 @@
+{
+  "h1": "Un titular distinto para el giro de prueba.",
+  "titulo": "Giro de prueba | Sitio de ejemplo",
+  "descripcion": "Descripción del giro de prueba para las herramientas del sitio.",
+  "problemas": [
+    {
+      "texto": "Primer problema del giro."
+    },
+    {
+      "texto": "Segundo problema del giro."
+    },
+    {
+      "texto": "Tercer problema del giro."
+    }
+  ]
+}

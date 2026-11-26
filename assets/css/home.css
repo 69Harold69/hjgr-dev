@@ -1,0 +1,987 @@
+/*
+ * home.css: piezas propias de la home (hero, hoja del pedido y cierre).
+ * Barra, pie, botones, hoja y marcas de corte salen de componentes.css.
+ * Solo tokens; sin JavaScript. Capa: componentes.
+ */
+@layer componentes {
+
+  /* Las anclas (#contacto) y el foco no quedan tapados por la barra fija. */
+  html {
+    scroll-padding-top: calc(var(--barra-alto) + var(--espacio-2));
+  }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    padding-block: var(--espacio-4) var(--espacio-5);
+  }
+  .hero__rejilla {
+    display: grid;
+    gap: var(--espacio-5);
+    align-items: center;
+  }
+  .hero__texto > p:not(.hero__firma) {
+    max-width: 34rem;
+    margin-block-start: var(--espacio-3);
+    color: var(--ink-2);
+  }
+  .hero__texto h1 {
+    line-height: 1.04;
+  }
+  /* Cada oración del titular en su propio bloque: los saltos caen entre ideas. */
+  .hero__frase {
+    display: block;
+    text-wrap: balance;
+  }
+  .hero__acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--espacio-2);
+    margin-block-start: var(--espacio-4);
+  }
+  .hero__acciones .boton {
+    flex: 1 1 100%;
+  }
+  .hero__firma {
+    max-width: 34rem;
+    margin-block-start: var(--espacio-3);
+    color: var(--ink-2);
+    font-size: var(--texto-chico);
+  }
+  @media (min-width: 480px) {
+    .hero__acciones .boton { flex: 0 0 auto; }
+  }
+  @media (min-width: 768px) {
+    .hero { padding-block: var(--espacio-5) calc(var(--espacio-5) * 1.25); }
+  }
+  @media (min-width: 1024px) {
+    .hero__rejilla {
+      grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+      column-gap: calc(var(--espacio-5) * 1.5);
+    }
+  }
+  /* Con la columna de texto angosta (1024 a 1199 px) los dos botones no caben en línea: se apilan con el mismo ancho
+     (el del más largo) en vez de quedar uno más ancho que otro. */
+  @media (min-width: 1024px) and (max-width: 1199.98px) {
+    .hero__acciones {
+      display: grid;
+      grid-template-columns: 1fr;
+      width: fit-content;
+      max-width: 100%;
+    }
+    .hero__acciones .boton {
+      flex: none;
+    }
+  }
+
+  /* ---------- Hoja «Un pedido, de principio a fin» ---------- */
+  .pedido {
+    width: 100%;
+    max-width: 28rem;
+    justify-self: center; /* por debajo de 1024 px la hoja va centrada bajo el texto */
+  }
+  @media (min-width: 1024px) {
+    .pedido { justify-self: end; }
+  }
+  .pedido__titulo {
+    font-size: var(--titulo-3);
+    line-height: 1.08;
+  }
+  .sin-salto {
+    white-space: nowrap;
+  }
+  .etapas {
+    --cuadro: 13px;                      /* impar: la línea de 1 px cae al centro */
+    --arriba: calc((1.55em - var(--cuadro)) / 2);
+    margin-block: var(--espacio-3);
+    padding: 0;
+    list-style: none;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .etapas__item {
+    position: relative;
+    padding-block-end: var(--espacio-3);
+    padding-inline-start: calc(var(--cuadro) + var(--espacio-2));
+  }
+  .etapas__item:last-child {
+    padding-block-end: 0;
+  }
+  .etapas__item::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    top: var(--arriba);
+    width: var(--cuadro);
+    height: var(--cuadro);
+    border: 1px solid var(--ink);
+    background-color: var(--paper-hi);
+  }
+  /* Línea naranja de 1 px: del cuadrito de esta etapa al de la siguiente. */
+  .etapas__item:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    inset-inline-start: calc(var(--cuadro) / 2 - 0.5px);
+    top: calc(var(--arriba) + var(--cuadro));
+    bottom: calc(-1 * var(--arriba));
+    border-inline-start: 1px solid var(--accent);
+  }
+  /* El último cuadrito va relleno de tinta, no de naranja. */
+  .etapas__item:last-child::before {
+    background-color: var(--ink);
+  }
+  .pedido__pie {
+    padding-block-start: var(--espacio-2);
+    border-top: 1px solid var(--rule);
+    color: var(--ink-2);
+    font-size: var(--texto-chico);
+  }
+
+  /* ---------- Cierre ---------- */
+  .cierre {
+    padding-block: var(--espacio-seccion);
+    border-top: 1px solid var(--rule);
+    background-color: var(--paper);
+  }
+  .cierre__titulo {
+    width: fit-content;
+    max-width: 100%;
+    padding-block-end: 0.16em;
+    border-bottom: 1px solid var(--accent);
+    font-size: var(--titulo-gigante);
+    letter-spacing: -0.03em;
+  }
+  .cierre__texto {
+    max-width: 34rem;
+    margin-block-start: var(--espacio-4);
+    color: var(--ink-2);
+  }
+  .cierre__acciones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--espacio-2) var(--espacio-4);
+    margin-block-start: var(--espacio-4);
+  }
+}
+
+/*
+ * Secciones de la home (3 a 9): problemas, sistemas, frase, trabajo, cómo trabajo, precios y quién.
+ * Capa: componentes. Solo tokens.
+ */
+@layer componentes {
+
+  .lista-limpia {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* Título de sección con aire antes del contenido (las marcas de corte salen 16 a 20 px). */
+  .seccion .contenedor > h2 {
+    margin-block-end: var(--espacio-4);
+    max-width: 22ch;
+  }
+  .seccion .contenedor > h2 + .seccion__intro {
+    margin-block-start: calc(-1 * var(--espacio-2));
+  }
+  .seccion__intro {
+    max-width: 38rem;
+    margin-block-end: var(--espacio-5);
+  }
+
+  /* ---------- 3. Problemas ---------- */
+  .problemas {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--ink);
+    counter-reset: problema;
+  }
+  .problemas__fila {
+    display: grid;
+    grid-template-columns: 2rem 1fr;
+    column-gap: var(--espacio-2);
+    row-gap: var(--espacio-1);
+    align-items: baseline;
+    padding-block: var(--espacio-3);
+    border-bottom: 1px solid var(--rule);
+    counter-increment: problema;
+  }
+  .problemas__fila::before {
+    content: counter(problema);
+    font-family: var(--font-display);
+    font-size: var(--titulo-3);
+    line-height: 1;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .problemas__frase {
+    font-family: var(--font-display);
+    font-size: var(--titulo-3);
+    line-height: 1.15;
+    letter-spacing: -0.022em;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  .problemas__fila .enlace-accion {
+    grid-column: 2;
+    justify-self: start;
+    min-width: var(--toque);
+  }
+  @media (min-width: 900px) {
+    .problemas__fila {
+      grid-template-columns: 3rem minmax(0, 1fr) 14rem;
+      column-gap: var(--espacio-4);
+      align-items: center;
+      padding-block: var(--espacio-4);
+    }
+    .problemas__fila .enlace-accion {
+      grid-column: 3;
+      justify-self: start;
+    }
+  }
+
+  /* ---------- 4. Sistemas: seis etapas sobre una línea ---------- */
+  .proceso {
+    --cuadro: 13px;
+    --hueco: var(--espacio-3);
+    --arriba: calc((var(--titulo-4) - var(--cuadro)) / 2);
+    position: relative;
+    margin-block-end: var(--espacio-5);
+  }
+  .proceso__lista {
+    display: grid;
+    gap: var(--espacio-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  /* La línea naranja de 1 px y las marcas son elementos propios: una entrega futura los anima con transform y opacity. */
+  .proceso__linea {
+    position: absolute;
+    inset-inline-start: calc(var(--cuadro) / 2 - 0.5px);
+    top: calc(var(--arriba) + var(--cuadro) / 2);
+    bottom: 0;
+    width: 1px;
+    background-color: var(--accent);
+    transform-origin: top;
+  }
+  .proceso__etapa {
+    position: relative;
+    padding-inline-start: calc(var(--cuadro) + var(--espacio-3));
+  }
+  .proceso__marca {
+    position: absolute;
+    inset-inline-start: 0;
+    top: var(--arriba);
+    width: var(--cuadro);
+    height: var(--cuadro);
+    border: 1px solid var(--ink);
+    background-color: var(--paper-2);
+  }
+  .proceso__etapa:last-child .proceso__marca {
+    background-color: var(--ink);
+  }
+  /* Tapa el tramo de línea que queda debajo de la última marca (vertical). */
+  .proceso__etapa:last-child::after {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    top: calc(var(--arriba) + var(--cuadro));
+    bottom: 0;
+    width: var(--cuadro);
+    background-color: var(--paper-2);
+  }
+  .proceso__etapa .nombre {
+    line-height: 1;
+  }
+  .proceso__etapa p + p {
+    margin-block-start: var(--espacio-1);
+    font-size: var(--texto-chico);
+    color: var(--ink-2);
+  }
+  /* 768 px en adelante: la etapa va bajo su marca, no a su lado. */
+  @media (min-width: 768px) {
+    .proceso__lista {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-auto-rows: 1fr;
+      column-gap: var(--hueco);
+      row-gap: var(--espacio-4);
+    }
+    .proceso__etapa {
+      padding-inline-start: 0;
+      padding-block-start: calc(var(--cuadro) + var(--espacio-3));
+    }
+    .proceso__marca {
+      top: 0;
+    }
+    .proceso__etapa:last-child::after {
+      display: none;
+    }
+  }
+  /* 768 a 1099 px: tres columnas por dos filas. La línea es un solo elemento sin trazo propio (así el JS la anima
+     con una sola escala) y sus dos pseudo-elementos son la línea de cada fila: heredan su transform. Las filas
+     miden lo mismo (grid-auto-rows: 1fr), por eso la segunda cae a la mitad más medio hueco. */
+  @media (min-width: 768px) and (max-width: 1099.98px) {
+    .proceso__linea {
+      inset-inline-start: calc(var(--cuadro) / 2);
+      inset-inline-end: calc((100% - 2 * var(--hueco)) / 3);
+      top: 0;
+      bottom: 0;
+      width: auto;
+      background-color: transparent;
+      transform-origin: left;
+    }
+    .proceso__linea::before,
+    .proceso__linea::after {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      height: 1px;
+      background-color: var(--accent);
+    }
+    .proceso__linea::before {
+      top: calc(var(--cuadro) / 2 - 0.5px);
+    }
+    .proceso__linea::after {
+      top: calc(50% + var(--espacio-4) / 2 + var(--cuadro) / 2 - 0.5px);
+    }
+  }
+  @media (min-width: 1100px) {
+    .proceso__lista {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+    .proceso__linea {
+      inset-inline-start: calc(var(--cuadro) / 2);
+      inset-inline-end: calc((100% - 5 * var(--hueco)) / 6);
+      top: calc(var(--cuadro) / 2 - 0.5px);
+      bottom: auto;
+      width: auto;
+      height: 1px;
+      transform-origin: left;
+    }
+  }
+
+  .sistemas__titulo {
+    margin-block-end: var(--espacio-3);
+  }
+  .filas {
+    margin: 0;
+  }
+  .filas .fila__etiqueta {
+    color: var(--ink);
+    font-size: var(--texto);
+  }
+  .filas .fila__valor {
+    margin: 0;
+    color: var(--ink-2);
+  }
+  @media (min-width: 640px) {
+    .filas .fila {
+      grid-template-columns: minmax(12rem, 1fr) 2fr;
+      padding-block: var(--espacio-3);
+    }
+  }
+
+  /* ---------- 5. Frase en la banda de tinta ---------- */
+  .banda--tinta.seccion {
+    padding-block: calc(var(--espacio-seccion) * 0.9);
+  }
+  .frase {
+    max-width: 46rem;
+    font-family: var(--font-display);
+    font-size: var(--titulo-2);
+    line-height: 1.12;
+    letter-spacing: -0.022em;
+    color: var(--paper);
+    text-wrap: balance;
+  }
+
+  /* ---------- 6. Trabajo ---------- */
+  .trabajo {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .captura__marco {
+    overflow: clip; /* recorta el zoom dentro del marco; nunca overflow:hidden */
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .captura__marco picture {
+    display: block;
+  }
+  .captura__marco .captura__img {
+    border-radius: 0;
+    background-color: var(--paper-3);
+  }
+  .captura__cuerpo {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--espacio-1);
+    padding: var(--espacio-3);
+    border-top: 1px solid var(--rule);
+  }
+  .captura__cuerpo h3 {
+    font-size: var(--titulo-3);
+  }
+  .captura__cuerpo p {
+    max-width: 30rem;
+    margin-block-end: var(--espacio-1);
+  }
+  .rejilla > li {
+    display: block;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .trabajo {
+      transition: transform var(--t-normal) var(--ease);
+    }
+    .trabajo .captura__img {
+      transition: transform var(--t-lento) var(--ease);
+    }
+    @media (hover: hover) {
+      .trabajo:hover {
+        transform: translateY(-2px);
+      }
+      .trabajo:hover .captura__img {
+        transform: scale(1.02);
+      }
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .trabajo.marcas:hover .marcas__esq::before,
+    .trabajo.marcas:hover .marcas__esq::after,
+    .trabajo.marcas:focus-within .marcas__esq::before,
+    .trabajo.marcas:focus-within .marcas__esq::after {
+      transform: none;
+    }
+  }
+
+  /* ---------- 7. Cómo trabajo ---------- */
+  .pasos {
+    display: grid;
+    gap: var(--espacio-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: paso;
+  }
+  .paso {
+    padding: var(--espacio-3);
+    counter-increment: paso;
+  }
+  .paso::before {
+    content: counter(paso);
+    display: block;
+    margin-block-end: var(--espacio-3);
+    padding-block-end: var(--espacio-2);
+    border-bottom: 1px solid var(--accent);
+    font-family: var(--font-display);
+    font-size: var(--titulo-2);
+    line-height: 1;
+    color: var(--ink);
+  }
+  .paso h3 {
+    font-size: var(--titulo-4);
+    line-height: 1.1;
+  }
+  .paso p {
+    margin-block-start: var(--espacio-2);
+  }
+  @media (min-width: 640px) {
+    .pasos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1200px) {
+    .pasos { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+
+  /* ---------- 8. Precios ---------- */
+  .tabla {
+    width: calc(100% + 2 * var(--espacio-2));
+    margin-inline: calc(-1 * var(--espacio-2));
+    border-collapse: collapse;
+    border-top: 1px solid var(--ink);
+    text-align: start;
+  }
+  .tabla th,
+  .tabla td {
+    padding: var(--espacio-3) var(--espacio-2);
+    border-bottom: 1px solid var(--rule);
+    text-align: start;
+    vertical-align: baseline;
+  }
+  .tabla thead th {
+    padding-block: var(--espacio-2);
+    color: var(--muted);
+    font-size: var(--texto-chico);
+    font-weight: 500;
+  }
+  .tabla tbody th {
+    width: 38%;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .tabla td {
+    font-family: var(--font-display);
+    font-size: var(--titulo-4);
+    line-height: 1.1;
+    letter-spacing: -0.022em;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+  .tabla td.tabla__nota {
+    font-family: var(--font-body);
+    font-size: var(--texto);
+    letter-spacing: 0;
+    color: var(--ink-2);
+  }
+  .tabla__destacada th,
+  .tabla__destacada td {
+    background-color: var(--paper-2);
+  }
+  .precios__notas {
+    max-width: 40rem;
+    margin-block-start: var(--espacio-3);
+  }
+  .precios__notas p + p {
+    margin-block-start: var(--espacio-1);
+    font-size: var(--texto-chico);
+  }
+  @media (max-width: 639.98px) {
+    .tabla,
+    .tabla tbody,
+    .tabla tr,
+    .tabla th,
+    .tabla td {
+      display: block;
+    }
+    .tabla thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .tabla tr {
+      padding: var(--espacio-3) var(--espacio-2);
+      border-bottom: 1px solid var(--rule);
+    }
+    .tabla th,
+    .tabla td {
+      padding: 0;
+      border: 0;
+    }
+    .tabla tbody th {
+      width: auto;
+      font-size: var(--titulo-4);
+      font-family: var(--font-display);
+      font-weight: 400;
+      letter-spacing: -0.022em;
+      line-height: 1.1;
+    }
+    .tabla td {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: var(--espacio-2);
+      margin-block-start: var(--espacio-1);
+      text-align: end;
+    }
+    .tabla td::before {
+      content: attr(data-etiqueta);
+      flex: none;
+      font-family: var(--font-body);
+      font-size: var(--texto-chico);
+      font-weight: 500;
+      letter-spacing: 0;
+      color: var(--muted);
+    }
+    .tabla__destacada th,
+    .tabla__destacada td {
+      background-color: transparent;
+    }
+    .tabla tr.tabla__destacada {
+      background-color: var(--paper-2);
+    }
+  }
+
+  /* ---------- 9. Quién ---------- */
+  .quien {
+    display: grid;
+    gap: var(--espacio-5);
+    align-items: start;
+  }
+  .foto {
+    width: 100%;
+    max-width: 20rem;
+  }
+  .foto__espacio,
+  .foto__img {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    aspect-ratio: 4 / 5;
+    object-fit: cover;
+    background-color: var(--paper-3);
+    color: var(--ink-2);
+    border-radius: var(--radius);
+  }
+  .quien__texto > p {
+    max-width: 38rem;
+  }
+  .quien__texto > p + p {
+    margin-block-start: var(--espacio-2);
+  }
+  .quien__destacado {
+    font-family: var(--font-display);
+    font-size: var(--titulo-3);
+    line-height: 1.15;
+    letter-spacing: -0.022em;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  .quien__texto > .quien__destacado + p {
+    margin-block-start: var(--espacio-3);
+  }
+  .quien__faq {
+    margin-block: var(--espacio-5) var(--espacio-2);
+  }
+  .faq {
+    max-width: 38rem;
+    border-top: 1px solid var(--ink);
+  }
+  .faq__item {
+    border-bottom: 1px solid var(--rule);
+  }
+  .faq__item summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--espacio-2);
+    min-height: var(--toque);
+    padding-block: var(--espacio-1);
+    color: var(--ink);
+    font-weight: 500;
+    list-style: none;
+    cursor: pointer;
+  }
+  .faq__item summary::-webkit-details-marker {
+    display: none;
+  }
+  /* El «+» y el «−» son decorativos: «/ ""» los deja fuera del nombre accesible (el lector ya anuncia
+     contraído/expandido). La primera línea es el respaldo para navegadores sin texto alternativo en content. */
+  .faq__item summary::after {
+    content: "+";
+    content: "+" / "";
+    flex: none;
+    font-size: 1.5rem;
+    font-weight: 400;
+    line-height: 1;
+  }
+  .faq__item[open] summary::after {
+    content: "\2212";
+    content: "\2212" / "";
+  }
+  .faq__item p {
+    padding-block-end: var(--espacio-2);
+  }
+  @media (min-width: 900px) {
+    .quien {
+      grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+      column-gap: var(--espacio-5);
+    }
+    .foto {
+      position: sticky;
+      top: calc(var(--barra-alto) + var(--espacio-4));
+      max-width: none; /* llena su columna: ya no queda un hueco vacío antes del texto */
+    }
+  }
+}
+
+/*
+ * Animaciones de la home (#7, #31): entrada del hero y armado de cada sección al entrar en pantalla (incluida la línea de las seis etapas). Las dirige assets/js/main.js.
+ * Regla de oro: lo «oculto para animar» solo existe bajo una clase que el JS pone en <html> (js-entrada, js-secciones),
+ * nunca por defecto. Sin JS, con movimiento reducido o si algo falla, todo se ve. js-entrada además trae su
+ * propia salida a los 2.5 s (animación entrada-seguro; la retira entrada-activa si main.js arranca), por si el JS que la quita no llegara a correr.
+ * Solo transform y opacity. Capa: componentes.
+ */
+@layer componentes {
+  @media (prefers-reduced-motion: no-preference) {
+
+    /* ---------- Entrada del hero ---------- */
+    .js-entrada .hero .pedido,
+    .js-entrada .hero__acciones .boton {
+      opacity: 0;
+      transform: translateY(12px);
+      animation: entrada-seguro 1ms 2.5s forwards;
+    }
+    .js-entrada .hero .pedido .marcas__esq {
+      opacity: 0;
+      animation: entrada-seguro 1ms 2.5s forwards;
+    }
+    .js-entrada .hero .etapas__item:not(:last-child)::after {
+      transform: scaleY(0);
+      transform-origin: top;
+      animation: entrada-seguro 1ms 2.5s forwards;
+    }
+    /* Si main.js tomó el control (entrada-activa), el respaldo del CSS se retira: la entrada normal dura 3.9 s. */
+    .js-entrada.entrada-activa .hero .pedido,
+    .js-entrada.entrada-activa .hero__acciones .boton,
+    .js-entrada.entrada-activa .hero .pedido .marcas__esq,
+    .js-entrada.entrada-activa .hero .etapas__item:not(:last-child)::after {
+      animation: none;
+    }
+    /* Al terminar o saltar: cambio instantáneo, sin transiciones residuales. */
+    .entrada-fin *,
+    .entrada-fin *::before,
+    .entrada-fin *::after {
+      transition: none !important;
+    }
+
+    /* Cursores: decorativos, encima de todo y sin recibir toques ni clics. */
+    .entrada {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      overflow: clip;
+      pointer-events: none;
+    }
+    .cursor {
+      --cursor: var(--ink);
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      will-change: transform;
+      transform: translate(-100px, -100px);
+    }
+    .cursor svg {
+      display: block;
+      fill: var(--cursor);
+      stroke: var(--paper-hi);
+      stroke-width: 1px;
+      stroke-linejoin: round;
+    }
+    .cursor__rol {
+      position: absolute;
+      top: 20px;
+      left: 15px;
+      padding: 2px 8px;
+      border-radius: var(--radius);
+      background: var(--cursor);
+      color: var(--paper);
+      font-size: 0.875rem;
+      font-weight: 500;
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+    .cursor--procesos { --cursor: var(--ink); }
+    .cursor--backend { --cursor: var(--muted); }
+    .cursor--soporte { --cursor: var(--ink); }
+    /* El naranja, solo como línea fina: el cursor que traza la línea de la hoja y el de los botones. */
+    .cursor--procesos svg { stroke: var(--accent); }
+    .cursor--procesos .cursor__rol { box-shadow: inset 0 0 0 1px var(--accent); }
+
+    .entrada__todos {
+      position: absolute;
+      top: 0;
+      left: 0;
+      margin: 0;
+      padding: 6px 18px;
+      border-radius: var(--radius);
+      border-bottom: 1px solid var(--accent);
+      background: var(--ink);
+      color: var(--paper);
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      line-height: 1.3;
+      white-space: nowrap;
+      letter-spacing: -0.01em;
+      opacity: 0;
+    }
+
+    /* «Saltar»: botón real, siempre alcanzable, 44 px o más. */
+    .entrada__saltar {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 31;
+      min-width: var(--toque);
+      min-height: var(--toque);
+      padding: 0.625rem 1.25rem;
+      border: 1px solid var(--ink);
+      border-radius: var(--radius);
+      background: var(--paper-hi);
+      color: var(--ink);
+      font-size: var(--texto);
+      font-weight: 500;
+      line-height: 1.2;
+    }
+
+    @media screen {
+    /* ---------- Secciones: las arman los cursores al entrar en pantalla ---------- */
+    /* Todo lo «desarmado» existe SOLO bajo .js-secciones (la pone inicio.js) y mientras la sección no tenga .armada.
+       Solo se esconde lo visual (líneas, bordes, marcas de corte, capturas, resaltado); el texto jamás. Las líneas que
+       se dibujan son capas propias (pseudo-elementos con scaleX/scaleY); el borde real se pone transparente (no cambia
+       ninguna medida) y vuelve al quedar armada la sección. Las anima main.js con la Web Animations API. */
+    .js-secciones main > section:not(.hero) {
+      position: relative;
+    }
+    /* Capa de cursores de una sección: dentro de ella, recortada, sin tocar el layout ni los toques. */
+    .cursores-seccion {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      overflow: clip;
+      pointer-events: none;
+    }
+
+    /* Líneas que se dibujan (capas): comparten forma; cada una trae su color y su posición. */
+    .js-secciones main > section:not(.armada) .problemas::before,
+    .js-secciones main > section:not(.armada) .problemas__fila::after,
+    .js-secciones main > section:not(.armada) .fila::before,
+    .js-secciones main > section:not(.armada) .fila:last-child::after,
+    .js-secciones main > section:not(.armada) .captura__cuerpo::before,
+    .js-secciones main > section:not(.armada) .paso::after,
+    .js-secciones main > section:not(.armada) .faq::before,
+    .js-secciones main > section:not(.armada) .faq__item::after,
+    .js-secciones main > section:not(.armada) .cierre__titulo::after,
+    .js-secciones main > .cierre:not(.armada)::before {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      height: 1px;
+      transform: scaleX(0);
+      transform-origin: left;
+      pointer-events: none;
+    }
+    .js-secciones main > section:not(.armada) .problemas,
+    .js-secciones main > section:not(.armada) .problemas__fila,
+    .js-secciones main > section:not(.armada) .fila,
+    .js-secciones main > section:not(.armada) .captura__cuerpo,
+    .js-secciones main > section:not(.armada) .faq,
+    .js-secciones main > section:not(.armada) .faq__item,
+    .js-secciones main > section:not(.armada) .cierre__titulo {
+      position: relative;
+    }
+
+    /* 3. Problemas */
+    .js-secciones main > section:not(.armada) .problemas { border-top-color: transparent; }
+    .js-secciones main > section:not(.armada) .problemas::before { top: -1px; background-color: var(--ink); }
+    .js-secciones main > section:not(.armada) .problemas__fila { border-bottom-color: transparent; }
+    .js-secciones main > section:not(.armada) .problemas__fila::after { bottom: -1px; background-color: var(--rule); }
+
+    /* 4. Sistemas: la línea de las seis etapas (con sus marcas) y las filas */
+    .js-secciones main > section:not(.armada) .proceso__linea { transform: scaleY(0); }
+    .js-secciones main > section:not(.armada) .proceso__marca { opacity: 0; }
+    .js-secciones main > section:not(.armada) .fila { border-top-color: transparent; }
+    .js-secciones main > section:not(.armada) .fila:last-child { border-bottom-color: transparent; }
+    .js-secciones main > section:not(.armada) .fila::before { top: -1px; background-color: var(--rule); }
+    .js-secciones main > section:not(.armada) .fila:last-child::after { bottom: -1px; background-color: var(--rule); }
+    @media (min-width: 768px) {
+      .js-secciones main > section:not(.armada) .proceso__linea { transform: scaleX(0); }
+    }
+
+    /* 6. Trabajo: marcas de corte y capturas dentro de su marco (sus medidas ya están reservadas) */
+    .js-secciones main > section:not(.armada) .trabajo .marcas__esq,
+    .js-secciones main > section:not(.armada) .foto .marcas__esq,
+    .js-secciones main > section:not(.armada) .captura__img { opacity: 0; }
+    .js-secciones main > section:not(.armada) .captura__cuerpo { border-top-color: transparent; }
+    .js-secciones main > section:not(.armada) .captura__cuerpo::before { top: -1px; background-color: var(--rule); }
+
+    /* 7. Cómo trabajo: la línea naranja bajo cada número (el número es texto y queda a la vista) */
+    .js-secciones main > section:not(.armada) .paso::before { border-bottom-color: transparent; }
+    .js-secciones main > section:not(.armada) .paso::after {
+      inset-inline: var(--espacio-3);
+      top: calc(var(--espacio-3) + var(--titulo-2) + var(--espacio-2));
+      background-color: var(--accent);
+    }
+    .js-secciones main > section:not(.armada) .paso { position: relative; }
+
+    /* 8. Precios: el resaltado de la fila del diagnóstico (una capa por celda; en celular, dos mitades de la fila) */
+    .js-secciones main > section:not(.armada) .tabla__destacada th,
+    .js-secciones main > section:not(.armada) .tabla__destacada td {
+      position: relative;
+      isolation: isolate;
+      background-color: transparent;
+    }
+    .js-secciones main > section:not(.armada) .tabla__destacada th::after,
+    .js-secciones main > section:not(.armada) .tabla__destacada td::after,
+    .js-secciones main > section:not(.armada) tr.tabla__destacada::before,
+    .js-secciones main > section:not(.armada) tr.tabla__destacada::after {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      background-color: var(--paper-2);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .js-secciones main > section:not(.armada) .tabla__destacada th::after,
+    .js-secciones main > section:not(.armada) .tabla__destacada td::after { inset: 0; }
+    @media (max-width: 639.98px) {
+      .js-secciones main > section:not(.armada) .tabla__destacada th::after,
+      .js-secciones main > section:not(.armada) .tabla__destacada td::after { display: none; }
+      .js-secciones main > section:not(.armada) tr.tabla__destacada {
+        position: relative;
+        isolation: isolate;
+        background-color: transparent;
+      }
+      .js-secciones main > section:not(.armada) tr.tabla__destacada::before { inset: 0 50% 0 0; }
+      .js-secciones main > section:not(.armada) tr.tabla__destacada::after { inset: 0 0 0 50%; }
+    }
+    @media (min-width: 640px) {
+      .js-secciones main > section:not(.armada) tr.tabla__destacada::before,
+      .js-secciones main > section:not(.armada) tr.tabla__destacada::after { display: none; }
+    }
+
+    /* 9. Quién: marcas de la foto y líneas de las preguntas */
+    .js-secciones main > section:not(.armada) .faq { border-top-color: transparent; }
+    .js-secciones main > section:not(.armada) .faq::before { top: -1px; background-color: var(--ink); }
+    .js-secciones main > section:not(.armada) .faq__item { border-bottom-color: transparent; }
+    .js-secciones main > section:not(.armada) .faq__item::after { bottom: -1px; background-color: var(--rule); }
+
+    /* 10. Cierre: la línea naranja del título y el filete de arriba */
+    .js-secciones main > section:not(.armada) .cierre__titulo { border-bottom-color: transparent; }
+    .js-secciones main > section:not(.armada) .cierre__titulo::after { bottom: -1px; background-color: var(--accent); }
+    .js-secciones main > .cierre:not(.armada) { border-top-color: transparent; }
+    .js-secciones main > .cierre:not(.armada)::before { top: -1px; background-color: var(--rule); }
+    }
+  }
+
+  @keyframes entrada-seguro {
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Al imprimir o guardar como PDF (antes de bajar a las etapas o a mitad de la entrada): todo armado y sin cursores.
+     !important porque es lo único que gana a una animación en curso (Element.animate con fill). */
+  @media print {
+    .hero .pedido,
+    .hero .pedido .marcas__esq,
+    .hero__acciones .boton,
+    .proceso__marca {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+    .hero .etapas__item::after,
+    .proceso__linea {
+      transform: none !important;
+    }
+    .captura__img,
+    .trabajo .marcas__esq,
+    .foto .marcas__esq {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+    .entrada,
+    .entrada__saltar,
+    .cursores-seccion {
+      display: none !important;
+    }
+  }
+}
