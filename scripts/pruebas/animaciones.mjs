@@ -3,7 +3,13 @@
   animaciones: las dos animaciones de la home y de las páginas de giro (issues #7 y #8; comparten hero), contra el servidor de pruebas (con la CSP de producción).
     1. Entrada del hero, «un equipo de cursores»: en cada carga (sin memoria de visitas), 3 cursores (Procesos, Backend, Soporte: arman la hoja, los botones y la línea naranja) y el botón «Saltar»,
        termina sola en 4 s como máximo y deja todo visible y sin residuos.
-    2. Línea de las seis etapas: se dibuja una vez al entrar la sección; sin JS o con movimiento reducido, completa.
+    2. Secciones (#31): los mismos cursores arman cada sección una sola vez por carga, al entrar ~30 % en pantalla (líneas, bordes, marcas de corte,
+       la línea de las seis etapas, el resaltado de la fila del diagnóstico y las capturas dentro de su marco); el texto nunca se esconde;
+       «Saltar» (o Escape) los apaga en toda la página durante esa visita; sin JS, con movimiento reducido o al imprimir, todo armado.
+  Secciones, en 1280×800 y 390×844: cada una se arma una sola vez y en 1.5 s como máximo (1 s en celular), con 2 o 3 cursores (2 en celular, aria-hidden,
+    pointer-events:none, sin scroll horizontal); a mitad de la animación todo su texto está a opacidad 1; solo se animan transform y opacity; scroll rápido
+    hasta el final: lo que quedó atrás se arma al instante y nada queda desarmado; «Saltar» y Escape; movimiento reducido, sin JS e impresión: todo armado;
+    carga con ancla a una sección intermedia: lo de arriba está armado; foco de teclado en una sección sin armar: se arma al instante; el JS falla: todo armado.
   Comprueba, en 1280×800 y 390×844 (cada caso en un contexto nuevo):
     - primera visita: el H1 y su párrafo visibles desde el primer pintado (opacidad 1, sin recorte, sin transform) mientras corren los cursores,
       y el elemento LCP es el H1 (decisión del dueño: el mensaje se lee al instante); 3 cursores aria-hidden con pointer-events:none, botón «Saltar» (<button>, 44 px o más),
@@ -27,7 +33,8 @@
 import { conPaginas, leerArgs, salir } from "./lib/comun.mjs";
 
 const a = leerArgs();
-if (a.ayuda || a.help) salir(0, "Uso: node animaciones.mjs [--raiz DIR]");
+if (a.ayuda || a.help) salir(0, "Uso: node animaciones.mjs [--raiz DIR] [--solo-secciones]");
+const soloSecciones = !!a["solo-secciones"]; // para iterar: salta el hero y las fallas simuladas
 
 const VIEWPORTS = [
   { width: 1280, height: 800 },
@@ -75,7 +82,7 @@ const ESTADO_FINAL = () => {
   if (botones.length !== 2) f.push(`el hero debe tener 2 botones y tiene ${botones.length}`);
   botones.forEach((el, i) => limpio(`botón ${i + 1}`, el));
   document.querySelectorAll(".hero .etapas__item:not(:last-child)").forEach((el, i) => limpio(`línea de la hoja ${i + 1}`, el, "::after"));
-  if (document.querySelector(".entrada, .cursor, .entrada__saltar")) f.push("quedan elementos de la animación en el DOM");
+  if (document.querySelector(".entrada, .cursor, .entrada__saltar, .cursores-seccion")) f.push("quedan elementos de la animación en el DOM");
   const clases = [...document.documentElement.classList].filter((c) => /^(js-entrada|entrada)/.test(c));
   if (clases.length) f.push(`quedan clases en <html>: ${clases.join(" ")}`);
   return f;
@@ -102,6 +109,88 @@ const ESTADO_LINEA = () => {
   const l = document.querySelector(".proceso__linea");
   const m = new DOMMatrix(getComputedStyle(l).transform === "none" ? undefined : getComputedStyle(l).transform);
   return { a: m.a, d: m.d, marcas: [...document.querySelectorAll(".proceso__marca")].map((x) => Number(getComputedStyle(x).opacity)), clase: document.documentElement.className };
+};
+
+
+/* Todo armado: sin pseudo-capas de líneas, bordes reales visibles, nada con opacidad 0 ni transformaciones residuales, sin cursores de sección. */
+const ESTADO_ARMADO = () => {
+  const f = [];
+  const transp = (c) => c === "rgba(0, 0, 0, 0)" || c === "transparent";
+  const ident = (t) => t === "none" || t === "matrix(1, 0, 0, 1, 0, 0)";
+  const bordes = [
+    [".problemas", "borderTopColor"], [".problemas__fila", "borderBottomColor"], [".fila", "borderTopColor"], [".captura__cuerpo", "borderTopColor"],
+    [".faq", "borderTopColor"], [".faq__item", "borderBottomColor"], [".cierre__titulo", "borderBottomColor"], [".cierre", "borderTopColor"],
+  ];
+  for (const [sel, prop] of bordes) for (const el of document.querySelectorAll(`main ${sel}, main${sel}, main > ${sel}`)) if (transp(getComputedStyle(el)[prop])) f.push(`${sel}: ${prop} transparente`);
+  for (const el of document.querySelectorAll(".paso")) if (transp(getComputedStyle(el, "::before").borderBottomColor)) f.push(".paso::before: borde transparente");
+  const pseudos = [[".problemas", "::before"], [".problemas__fila", "::after"], [".fila", "::before"], [".fila:last-child", "::after"], [".captura__cuerpo", "::before"], [".paso", "::after"], [".faq", "::before"], [".faq__item", "::after"], [".cierre__titulo", "::after"], [".cierre", "::before"]];
+  for (const [sel, ps] of pseudos) for (const el of document.querySelectorAll(sel)) if (getComputedStyle(el, ps).content !== "none" && getComputedStyle(el, ps).content !== "normal") f.push(`${sel}${ps}: capa de línea sin armar`);
+  for (const sel of [".proceso__marca", ".trabajo .marcas__esq", ".foto .marcas__esq", ".captura__img", ".hero .pedido .marcas__esq"]) for (const el of document.querySelectorAll(sel)) if (Number(getComputedStyle(el).opacity) !== 1) f.push(`${sel}: opacidad ${getComputedStyle(el).opacity}`);
+  for (const sel of [".proceso__linea", ".captura__img"]) for (const el of document.querySelectorAll(sel)) if (!ident(getComputedStyle(el).transform)) f.push(`${sel}: transform ${getComputedStyle(el).transform}`);
+  const fila = document.querySelector("tr.tabla__destacada");
+  if (fila) {
+    const movil = getComputedStyle(fila).display === "block";
+    const sin = movil ? [fila] : [...fila.children];
+    for (const el of sin) if (transp(getComputedStyle(el).backgroundColor)) f.push("fila del diagnóstico sin resaltado");
+  }
+  if (document.querySelector(".cursores-seccion")) f.push("quedan capas de cursores de sección");
+  return f;
+};
+
+/* Sonda de secciones: por cada <section> de <main>, cuándo se creó su capa de cursores y cuándo se armó, cuántos cursores tuvo a la vez,
+   si algo de su texto estuvo escondido mientras se armaba y qué propiedades se animaron. */
+const SONDA_SECCIONES = () => {
+  const S = (window.__sec = { s: {}, props: [], muestras: 0, capas: 0, cursoresVistos: 0, scrollH: false });
+  const idx = (el) => [...document.querySelectorAll("main > section")].indexOf(el);
+  const reg = (el) => (S.s[idx(el)] ??= { creada: null, armada: null, armadas: 0, capas: 0, max: 0, cursoresOk: true, texto: [] });
+  const SEG = new Set(["offset", "computedOffset", "easing", "composite", "transform", "opacity"]);
+  const propiedades = new Set();
+  const mirar = () => {
+    const secs = document.querySelectorAll("main > section");
+    secs.forEach((el) => {
+      if (el.classList.contains("armada")) {
+        const r = reg(el);
+        if (r.armada === null) {
+          r.armada = performance.now();
+          r.armadas++;
+        }
+      }
+    });
+    for (const capa of document.querySelectorAll(".cursores-seccion")) {
+      const el = capa.parentElement;
+      const r = reg(el);
+      if (r.creada === null) r.creada = performance.now();
+      const cs = [...capa.querySelectorAll(".cursor")];
+      r.max = Math.max(r.max, cs.length);
+      if (!capa.matches("[aria-hidden='true']") || getComputedStyle(capa).pointerEvents !== "none" || cs.some((c) => getComputedStyle(c).pointerEvents !== "none")) r.cursoresOk = false;
+      S.cursoresVistos = Math.max(S.cursoresVistos, cs.length);
+      // Texto de la sección a mitad de la animación: opacidad efectiva 1 y visible.
+      for (const t of el.querySelectorAll("*")) {
+        if (t.closest(".cursores-seccion, .solo-lectores, caption") || ![...t.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
+        let o = 1;
+        for (let n = t; n && n !== document.documentElement; n = n.parentElement) o *= Number(getComputedStyle(n).opacity);
+        const cs2 = getComputedStyle(t);
+        if (o < 0.999 || cs2.visibility !== "visible" || cs2.clipPath !== "none") {
+          const m = `${t.tagName.toLowerCase()}.${t.className}: opacidad ${o.toFixed(2)} ${cs2.visibility}`;
+          if (!r.texto.includes(m)) r.texto.push(m);
+        }
+      }
+      S.muestras++;
+    }
+    if (document.documentElement.scrollWidth > innerWidth) S.scrollH = true;
+    for (const a of document.getAnimations()) {
+      const kfs = a.effect && a.effect.getKeyframes ? a.effect.getKeyframes() : [];
+      for (const k of kfs) for (const p of Object.keys(k)) if (!SEG.has(p) && !propiedades.has(p)) propiedades.add(p);
+    }
+    S.props = [...propiedades];
+    requestAnimationFrame(mirar);
+  };
+  new MutationObserver((ms) => {
+    for (const m of ms) for (const n of m.addedNodes) if (n.classList && n.classList.contains("cursores-seccion")) reg(m.target).capas++;
+  }).observe(document, { subtree: true, childList: true });
+  const arrancar = () => requestAnimationFrame(mirar);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", arrancar);
+  else arrancar();
 };
 
 await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla: fallaBase }) => {
@@ -136,14 +225,14 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
     if (!c.esperados && c.consola.length) falla(donde, `mensajes en la consola: ${c.consola.join(" | ")}`);
     await c.ctx.close();
   };
-  const sinAnimacion = (page) => page.waitForFunction(() => !document.querySelector(".entrada, .cursor, .entrada__saltar") && !document.documentElement.classList.contains("js-entrada"), null, { polling: "raf", timeout: 6000 });
+  const sinAnimacion = (page) => page.waitForFunction(() => !document.querySelector(".entrada") && !document.documentElement.classList.contains("js-entrada"), null, { polling: "raf", timeout: 6000 });
   const revisarFinal = async (page, donde) => {
     for (const m of await page.evaluate(ESTADO_FINAL)) falla(donde, m);
   };
 
   for (const ruta of rutas) {
     falla = (donde, msg) => fallaBase(`${ruta} ${donde}`, msg);
-    for (const vp of VIEWPORTS) {
+    for (const vp of soloSecciones ? [] : VIEWPORTS) {
       const en = `@${vp.width}px`;
 
       /* 1 y 2. Primera visita y segunda visita. */
@@ -279,7 +368,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
             await page.waitForTimeout(2200);
           }
           const l = await page.evaluate(ESTADO_LINEA);
-          if (l.a !== 1 || l.d !== 1 || l.marcas.some((o) => o !== 1) || /js-etapas/.test(l.clase)) falla(`movimiento reducido ${en} (${paso})`, `la línea debe verse completa: ${JSON.stringify(l)}`);
+          if (l.a !== 1 || l.d !== 1 || l.marcas.some((o) => o !== 1) || /js-secciones/.test(l.clase)) falla(`movimiento reducido ${en} (${paso})`, `la línea debe verse completa: ${JSON.stringify(l)}`);
         }
         await cerrar(c, `consola movimiento reducido ${en}`);
       }
@@ -296,10 +385,10 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         if (antes[eje] !== 0 || antes[otro] !== 1) falla(`línea de etapas ${en}`, `antes de entrar debe estar en ${eje === "a" ? "scaleX" : "scaleY"}(0): ${JSON.stringify(antes)}`);
         if (antes.marcas.some((o) => o !== 0)) falla(`línea de etapas ${en}`, `las marcas deben estar ocultas antes de entrar: ${JSON.stringify(antes.marcas)}`);
         await page.locator(".proceso").scrollIntoViewIfNeeded();
-        await page.waitForTimeout(250);
+        await page.waitForTimeout(450);
         const medio = await page.evaluate(ESTADO_LINEA);
         if (!(medio[eje] > 0 && medio[eje] < 1) && medio[eje] !== 1) falla(`línea de etapas ${en}`, `debería estar dibujándose: ${JSON.stringify(medio)}`);
-        await page.waitForTimeout(2300);
+        await page.waitForTimeout(2000);
         const despues = await page.evaluate(ESTADO_LINEA);
         if (despues.a !== 1 || despues.d !== 1 || despues.marcas.length !== 6 || despues.marcas.some((o) => o !== 1)) falla(`línea de etapas ${en}`, `tras entrar debe estar completa con 6 marcas: ${JSON.stringify(despues)}`);
         await page.evaluate(() => window.scrollTo(0, 0));
@@ -347,6 +436,175 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
       }
     }
 
+
+    /* 8. Secciones (#31): se arman una sola vez al entrar en pantalla, con 2 o 3 cursores. */
+    for (const vp of VIEWPORTS) {
+      const en = `@${vp.width}px`;
+      const chico = vp.width < 768;
+      const maxMs = chico ? 1000 : 1500;
+      const abrirSec = async (opciones = {}, destino = ruta) => {
+        const c = await abrir({ viewport: vp, ...opciones });
+        await c.ctx.addInitScript(SONDA_SECCIONES);
+        const page = await c.ctx.newPage();
+        await page.goto(servidor.url + destino, { waitUntil: "load" });
+        return { c, page };
+      };
+      const secciones = (page) => page.evaluate(() => [...document.querySelectorAll("main > section:not(.hero)")].map((s, i) => ({ i: [...document.querySelectorAll("main > section")].indexOf(s), nombre: s.id || s.className.split(" ")[0], tinta: s.classList.contains("banda--tinta") })));
+      const irA = (page, i) => page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; window.scrollTo(0, window.scrollY + s.getBoundingClientRect().top - 90); }, i);
+
+      /* 8a. Lectura normal: sección por sección. */
+      {
+        const { c, page } = await abrirSec();
+        await sinAnimacion(page);
+        const lista = (await secciones(page)).filter((x) => !x.tinta);
+        for (const x of lista) {
+          await irA(page, x.i);
+          await page.waitForTimeout(1700);
+        }
+        const S = await page.evaluate(() => window.__sec);
+        for (const x of lista) {
+          const r = S.s[x.i];
+          const nombre = `sección «${x.nombre}» ${en}`;
+          if (!r || r.armada === null) { falla(`secciones ${nombre}`, "nunca se armó"); continue; }
+          if (r.armadas !== 1 || r.capas > 1) falla(`secciones ${nombre}`, `debe armarse una sola vez (armadas ${r.armadas}, capas ${r.capas})`);
+          if (r.creada !== null) {
+            const dur = r.armada - r.creada;
+            if (dur > maxMs) falla(`secciones ${nombre}`, `tardó ${dur.toFixed(0)} ms (máximo ${maxMs})`);
+            if (r.max < 2 || r.max > (chico ? 2 : 3)) falla(`secciones ${nombre}`, `${r.max} cursores (se esperan 2 a ${chico ? 2 : 3})`);
+            if (!r.cursoresOk) falla(`secciones ${nombre}`, "los cursores o su capa no son aria-hidden con pointer-events:none");
+            for (const m of r.texto) falla(`secciones ${nombre} a mitad de la animación`, `texto escondido: ${m}`);
+            console.log(`  ${nombre}: ${r.max} cursores, ${dur.toFixed(0)} ms`);
+          } else falla(`secciones ${nombre}`, "se armó sin cursores (debía animarse al leerla con calma)");
+        }
+        if (S.muestras < 20) falla(`secciones ${en}`, `la prueba casi no muestreó la animación (${S.muestras} cuadros)`);
+        if (S.props.length) falla(`secciones ${en}`, `se animan propiedades que no son transform ni opacity: ${S.props.join(", ")}`);
+        if (S.scrollH) falla(`secciones ${en}`, "los cursores provocan scroll horizontal");
+        // Segunda pasada: ya armadas, no vuelven a animar.
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.waitForTimeout(150);
+        for (const x of lista) { await irA(page, x.i); await page.waitForTimeout(120); }
+        const S2 = await page.evaluate(() => window.__sec);
+        for (const x of lista) if (S2.s[x.i].capas > 1 || S2.s[x.i].armadas !== 1) falla(`secciones sección «${x.nombre}» ${en}`, "volvió a animarse al regresar");
+        await cerrar(c, `consola secciones ${en}`);
+      }
+
+      /* 8b. Scroll rápido hasta el final: lo que quedó atrás se arma al instante y nada queda desarmado. */
+      {
+        const { c, page } = await abrirSec();
+        await sinAnimacion(page);
+        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+        await page.waitForTimeout(250);
+        const atras = await page.evaluate(() => [...document.querySelectorAll("main > section:not(.hero):not(.banda--tinta)")].filter((s) => s.getBoundingClientRect().bottom <= 0).map((s) => ({ nombre: s.id || s.className, armada: s.classList.contains("armada"), capa: !!s.querySelector(".cursores-seccion") })));
+        if (!atras.length) falla(`scroll rápido ${en}`, "la prueba no dejó secciones atrás");
+        for (const x of atras) if (!x.armada || x.capa) falla(`scroll rápido ${en}`, `«${x.nombre}» quedó atrás sin armar (armada ${x.armada}, con cursores ${x.capa})`);
+        await page.waitForTimeout(1700);
+        for (const m of await page.evaluate(ESTADO_ARMADO)) falla(`scroll rápido ${en} al final`, m);
+        const S = await page.evaluate(() => window.__sec);
+        for (const [i, r] of Object.entries(S.s)) if (r.armadas > 1) falla(`scroll rápido ${en}`, `sección ${i} armada ${r.armadas} veces`);
+        await cerrar(c, `consola scroll rápido ${en}`);
+      }
+
+      /* 8c. «Saltar» en el hero apaga los cursores en toda la página durante la visita (y vuelven en la siguiente carga). */
+      {
+        const { c, page } = await abrirSec();
+        await page.waitForSelector(".entrada .cursor", { timeout: 2000 });
+        await page.waitForTimeout(500);
+        await page.getByRole("button", { name: "Saltar" }).click();
+        await sinAnimacion(page);
+        const lista = (await secciones(page)).filter((x) => !x.tinta);
+        for (const x of lista) { await irA(page, x.i); await page.waitForTimeout(350); }
+        const S = await page.evaluate(() => window.__sec);
+        if (S.cursoresVistos || Object.values(S.s).some((r) => r.creada !== null || r.capas)) falla(`«Saltar» en el hero ${en}`, "aparecieron cursores de sección después de saltar");
+        if (await page.evaluate(() => !!document.querySelector(".cursor, .entrada__saltar") || document.documentElement.classList.contains("js-secciones"))) falla(`«Saltar» en el hero ${en}`, "quedaron cursores, el botón o la clase js-secciones");
+        for (const m of await page.evaluate(ESTADO_ARMADO)) falla(`«Saltar» en el hero ${en}`, m);
+        // Siguiente carga: vuelven (sin memoria).
+        const p2 = await c.ctx.newPage();
+        await p2.goto(servidor.url + ruta, { waitUntil: "domcontentloaded" });
+        try { await p2.waitForSelector(".entrada .cursor", { timeout: 2000 }); } catch { falla(`«Saltar» en el hero ${en}`, "en la siguiente carga no volvieron los cursores"); }
+        await cerrar(c, `consola «Saltar» hero ${en}`);
+      }
+
+      /* 8d. «Saltar» y Escape a mitad de una sección: terminan al instante y apagan lo que falta; el botón está mientras se arma. */
+      for (const via of ["Saltar", "Escape"]) {
+        const { c, page } = await abrirSec();
+        await sinAnimacion(page);
+        const lista = (await secciones(page)).filter((x) => !x.tinta);
+        const x = lista.find((y) => y.nombre === "trabajo") || lista[1];
+        await irA(page, x.i);
+        await page.waitForTimeout(450);
+        if (!(await page.evaluate(() => !!document.querySelector(".cursores-seccion .cursor")))) falla(`${via} en una sección ${en}`, "no había cursores que apagar");
+        if (via === "Saltar") {
+          const b = await page.getByRole("button", { name: "Saltar" }).boundingBox();
+          if (!b || b.width < 44 || b.height < 44) falla(`«Saltar» en una sección ${en}`, `el botón debe estar y medir 44 px o más (${JSON.stringify(b)})`);
+          await page.getByRole("button", { name: "Saltar" }).click();
+        } else await page.keyboard.press("Escape");
+        await page.waitForTimeout(250);
+        if (await page.evaluate(() => !!document.querySelector(".cursor, .cursores-seccion, .entrada__saltar"))) falla(`${via} en una sección ${en}`, "quedaron cursores o el botón a los 250 ms");
+        const lejos = lista[lista.length - 1];
+        await irA(page, lejos.i);
+        await page.waitForTimeout(300);
+        if (await page.evaluate(() => !!document.querySelector(".cursor, .cursores-seccion"))) falla(`${via} en una sección ${en}`, "aparecieron cursores después");
+        for (const m of await page.evaluate(ESTADO_ARMADO)) falla(`${via} en una sección ${en}`, m);
+        await cerrar(c, `consola ${via} sección ${en}`);
+      }
+
+      /* 8e. Movimiento reducido, sin JavaScript e impresión (a mitad de una animación): todo armado y sin cursores. */
+      for (const modo of ["reducido", "sin JS", "impresión"]) {
+        const opciones = modo === "reducido" ? { reducedMotion: "reduce" } : modo === "sin JS" ? { javaScriptEnabled: false } : {};
+        const { c, page } = await abrirSec(opciones);
+        if (modo === "impresión") {
+          await sinAnimacion(page);
+          const lista = (await secciones(page)).filter((x) => !x.tinta);
+          await irA(page, lista[1].i);
+          await page.waitForTimeout(400);
+          await page.emulateMedia({ media: "print" });
+          if (await page.evaluate(() => [...document.querySelectorAll(".cursores-seccion, .entrada__saltar")].some((e) => getComputedStyle(e).display !== "none"))) falla(`impresión ${en}`, "los cursores o «Saltar» se imprimen");
+          const f = (await page.evaluate(ESTADO_ARMADO)).filter((m) => !/capas de cursores/.test(m));
+          for (const m of f) falla(`impresión ${en} a mitad de una sección`, m);
+        } else {
+          await page.waitForTimeout(500);
+          const lista = await secciones(page);
+          for (const x of lista) { await irA(page, x.i).catch(() => {}); }
+          await page.waitForTimeout(300);
+          for (const m of await page.evaluate(ESTADO_ARMADO)) falla(`${modo} ${en}`, m);
+          if (await page.evaluate(() => !!document.querySelector(".cursor, .cursores-seccion, .entrada__saltar") || document.documentElement.classList.contains("js-secciones"))) falla(`${modo} ${en}`, "hay cursores o la clase js-secciones");
+        }
+        await cerrar(c, `consola ${modo} ${en}`);
+      }
+
+      /* 8f. Carga con ancla a una sección intermedia: lo de arriba está armado al instante, sin cursores. */
+      {
+        const { c, page } = await abrirSec({}, `${ruta}#precios`);
+        await page.waitForTimeout(500);
+        const r = await page.evaluate(() => {
+          const todas = [...document.querySelectorAll("main > section:not(.hero):not(.banda--tinta)")];
+          const meta = document.querySelector("#precios");
+          const arriba = todas.filter((s) => s.compareDocumentPosition(meta) & Node.DOCUMENT_POSITION_FOLLOWING).map((s) => ({ nombre: s.id || s.className, armada: s.classList.contains("armada"), capa: !!s.querySelector(".cursores-seccion"), animado: window.__sec.s[[...document.querySelectorAll("main > section")].indexOf(s)]?.creada != null }));
+          return { arriba, y: scrollY };
+        });
+        if (r.y < 100) falla(`ancla #precios ${en}`, "la página no bajó a #precios");
+        if (!r.arriba.length) falla(`ancla #precios ${en}`, "no hay secciones arriba de #precios");
+        for (const x of r.arriba) if (!x.armada || x.capa) falla(`ancla #precios ${en}`, `«${x.nombre}» (arriba) no está armada al instante (armada ${x.armada}, cursores ${x.capa})`);
+        await cerrar(c, `consola ancla ${en}`);
+      }
+
+      /* 8g. Foco de teclado en una sección sin armar: se arma al instante. */
+      {
+        const { c, page } = await abrirSec();
+        await sinAnimacion(page);
+        const r = await page.evaluate(() => {
+          const el = document.querySelector(".faq__item summary");
+          const s = el.closest("main > section");
+          const antes = s.classList.contains("armada");
+          el.focus({ preventScroll: true });
+          return { antes, despues: s.classList.contains("armada"), capa: !!s.querySelector(".cursores-seccion") };
+        });
+        if (r.antes) falla(`foco ${en}`, "la sección de las preguntas ya estaba armada antes de enfocar");
+        if (!r.despues || r.capa) falla(`foco ${en}`, `enfocar dentro de una sección sin armar debe armarla al instante (${JSON.stringify(r)})`);
+        await cerrar(c, `consola foco ${en}`);
+      }
+    }
+
     /* 7. El JS falla a mitad: a los 5.5 s todo es visible. */
     const fallos = [
       ["main.js pone la clase y revienta", (ctx) => ctx.route(/\/assets\/js\/main\.js/, (r) => r.fulfill({ ...JS, body: "document.documentElement.classList.add('js-entrada'); throw new Error('falla simulada');" }))],
@@ -356,7 +614,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
       }],
       ["main.js no carga", (ctx) => ctx.route(/\/assets\/js\/main\.js/, (r) => r.abort())],
     ];
-    for (const vp of VIEWPORTS) {
+    for (const vp of soloSecciones ? [] : VIEWPORTS) {
       for (const [nombre, preparar] of fallos) {
         const c = await abrir({ viewport: vp }, { esperados: true });
         await preparar(c.ctx);
@@ -366,6 +624,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         await page.waitForTimeout(Math.max(0, 5500 - (Date.now() - t0)));
         // Con inicio.js también roto, nadie quita la clase: basta con que el CSS deje todo visible (salida a los 5 s).
         for (const m of (await page.evaluate(ESTADO_FINAL)).filter((m) => !(nombre.startsWith("inicio.js") && /^quedan clases/.test(m)))) falla(`falla simulada «${nombre}» @${vp.width}px a los 5.5 s`, m);
+        for (const m of await page.evaluate(ESTADO_ARMADO)) falla(`falla simulada «${nombre}» @${vp.width}px a los 5.5 s (secciones)`, m);
         await c.ctx.close();
       }
     }

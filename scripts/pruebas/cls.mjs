@@ -2,7 +2,7 @@
 /*
   cls: Layout Instability API en Chromium con red limitada (≈ 4G lento: 150 ms de latencia, 1.6 Mbps) y CPU ×4
   más lenta, en 360, 390 y 412 px. CLS = la mayor ventana de sesión (huecos < 1 s, máx. 5 s) de los saltos sin
-  interacción reciente; se espera 2 s tras cargar y se recorre la página hasta el final.
+  interacción reciente; se espera 2 s tras cargar y se recorre la página hasta el final con scroll lento (las secciones se arman con sus cursores) y rápido.
   Falla si el CLS de alguna página y ancho pasa de --max (0 por defecto).
   Uso: node cls.mjs [--raiz DIR] [--max 0]
 */
@@ -30,13 +30,22 @@ await conPaginas("cls", a, async ({ paginas, servidor, navegador, falla }) => {
       await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
       await page.goto(servidor.url + p.ruta, { waitUntil: "load" });
       await page.waitForTimeout(2000);
+      // Recorrido completo a ritmo de lectura (cada sección se arma con sus cursores, #31), luego scroll rápido de ida y vuelta.
       await page.evaluate(async () => {
+        const espera = (ms) => new Promise((r) => setTimeout(r, ms));
         for (let y = 0; y < document.documentElement.scrollHeight; y += 300) {
           window.scrollTo(0, y);
-          await new Promise((r) => setTimeout(r, 50));
+          await espera(180);
+        }
+        await espera(1700);
+        window.scrollTo(0, 0);
+        await espera(300);
+        for (let y = 0; y < document.documentElement.scrollHeight; y += 300) {
+          window.scrollTo(0, y);
+          await espera(30);
         }
         window.scrollTo(0, 0);
-        await new Promise((r) => setTimeout(r, 300));
+        await espera(300);
       });
       const saltos = await page.evaluate(() => window.__saltos);
       let mejor = 0;

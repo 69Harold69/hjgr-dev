@@ -57,8 +57,8 @@ Cada prueba descubre sola las páginas (todos los `.html`, sin `scripts/`, `node
 | `node foco.mjs` | Tabulando, cada elemento enfocable muestra un indicador de foco visible |
 | `node accesibilidad.mjs` | En 1280 y 390 px, con el árbol de accesibilidad de Chromium: títulos sin saltos, un `<main>`, nombre accesible = texto visible en `a`, `button` y `summary`, ningún foco tapado por la barra fija y «Saltar al contenido» que lleva al `<main>` |
 | `node contraste.mjs` | Contraste de todo el texto visible con píxeles reales, tema claro: 4.5:1, o 3:1 para texto grande |
-| `node animaciones.mjs` | Entrada del hero y línea de las seis etapas, en la home y en las páginas de giro (comparten hero): cada carga (el H1 y su párrafo siempre visibles y el LCP es el H1), «Saltar», movimiento reducido, sin JS y fallas simuladas |
-| `node cls.mjs [--max 0]` | Layout Instability con red limitada en 360, 390 y 412 px |
+| `node animaciones.mjs` | Entrada del hero y armado de cada sección al hacer scroll, en la home y en las páginas de giro (comparten hero): cada carga (el H1 y su párrafo siempre visibles y el LCP es el H1), una sola vez por sección y en 1.5 s como máximo (1 s en celular), 2 o 3 cursores (2 en celular), texto siempre visible, solo `transform` y `opacity`, scroll rápido, ancla, foco, «Saltar» (también en una sección) y Escape, movimiento reducido, sin JS, impresión y fallas simuladas |
+| `node cls.mjs [--max 0]` | Layout Instability con red limitada en 360, 390 y 412 px, recorriendo toda la página (lento, con las secciones armándose, y rápido) |
 | `node lighthouse.mjs [--corridas 3]` | Móvil y escritorio, las cuatro categorías, mediana de N corridas; falla por debajo de 95 |
 | `node capturas.mjs` | Capturas de página completa en 1440, 768, 390 y 320 px en `scripts/pruebas/salida/` (ignorada por git) |
 | `python3 -I test_herramientas.py [--rapido]` | Pruebas de las propias herramientas: `fixtures/bueno` pasa todo y cada `fixtures/malos/<caso>` falla por su regla |
@@ -90,7 +90,7 @@ El orden importa porque `giros.py` arma cada página con lo que la plantilla tie
 
 Un giro nuevo (`fumigadoras`, `uniformes`, `distribuidoras`, `talleres`) es un archivo `scripts/giros/<giro>.json` más su `<loc>` en `sitemap.xml`; después, los cuatro comandos de arriba.
 
-**Entrada del hero.** La animación sale en cada carga de la home y de las páginas de giro (arriba del todo, sin movimiento reducido); no se guarda nada en el navegador (ni `localStorage` ni cookies).
+**Entrada del hero y armado de secciones.** La entrada del hero sale en cada carga de la home y de las páginas de giro (arriba del todo, sin movimiento reducido). Además, cada sección se arma una sola vez por carga al entrar ~30 % en pantalla, con 2 o 3 cursores (2 en celular), en 1.3 s como máximo; lo que queda atrás al hacer scroll rápido se arma al instante. «Saltar» (o Escape) apaga los cursores en toda la página durante esa visita. No se guarda nada en el navegador (ni `localStorage` ni cookies): en la siguiente carga vuelven. Detalle en `assets/css/LEEME.md`.
 
 Si cambia la CSP, cámbiela en este README y en `scripts/pruebas/lib/servidor.mjs`: la regla `csp-readme` exige que sean idénticas.
 
