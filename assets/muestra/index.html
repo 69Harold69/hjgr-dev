@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Muestra del sistema visual</title>
+  <meta name="description" content="Página interna para revisar los componentes del sistema visual.">
+  <link rel="preload" href="/assets/fuentes/hedvig-letters-serif-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/assets/fuentes/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/assets/css/tokens.css?v=5cf2bd6423">
+  <link rel="stylesheet" href="/assets/css/fuentes.css?v=5cf2bd6423">
+  <link rel="stylesheet" href="/assets/css/base.css?v=5cf2bd6423">
+  <link rel="stylesheet" href="/assets/css/componentes.css?v=5cf2bd6423">
+  <link rel="stylesheet" href="/assets/muestra/muestra.css">
+</head>
+<body>
+  <a class="salto" href="#contenido">Saltar al contenido</a>
+
+  <header class="banda u-puntos">
+    <div class="contenedor seccion pila--grande pila">
+      <p class="etiqueta etiqueta--guia">Página de muestra, solo para revisión</p>
+      <h1>Sitios web claros, rápidos y hechos a su medida</h1>
+      <p class="muestra__lead">Texto corrido en Geist 400 a 19 px con interlineado 1.55. Incluye español: á é í ó ú ñ ü ¿ ¡ « » y el signo $.</p>
+      <p>
+        <a class="boton" href="#botones">Pedir mi sitio</a>
+        <a class="boton boton--secundario" href="#hoja">Ver ejemplos</a>
+      </p>
+    </div>
+  </header>
+
+  <main id="contenido">
+    <section class="seccion">
+      <div class="contenedor pila--grande pila">
+        <p class="etiqueta">Escala tipográfica</p>
+        <h2 class="muestra__titulo-1">Título 1: Hedvig en tipo oración</h2>
+        <h2>Título 2: ¿Cuánto cuesta un sitio?</h2>
+        <h3>Título 3: «Todo incluido» desde $9,870</h3>
+        <h4>Título 4: Dominio, correo y mantenimiento</h4>
+        <p>Párrafo en Geist 400. Aquí va un <a href="#contenido">enlace en el texto</a> que dibuja su subrayado al pasar el mouse, y una palabra en <strong>500</strong>. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        <p><small>Texto chico en Geist 400, para notas al pie.</small></p>
+        <p class="etiqueta">Etiqueta: Geist 500, un paso más chica</p>
+        <p><span class="nombre">Nombre de ejemplo</span> · <span class="precio">$9,870</span></p>
+      </div>
+    </section>
+
+    <section class="seccion banda" id="botones">
+      <div class="contenedor pila--grande pila">
+        <h2>Botones</h2>
+        <p class="etiqueta">Principal, secundario y enlace de acción. Tabule para ver el foco.</p>
+        <div class="muestra__fila">
+          <a class="boton" href="#botones">Principal</a>
+          <a class="boton boton--secundario" href="#botones">Secundario</a>
+          <a class="enlace-accion" href="#botones">Enlace de acción</a>
+          <button class="boton" type="button">Botón nativo</button>
+        </div>
+        <p class="etiqueta">Estados forzados para revisión visual</p>
+        <div class="muestra__fila">
+          <a class="boton muestra__hover" href="#botones">Hover</a>
+          <a class="boton muestra__activo" href="#botones">Presionado</a>
+          <a class="boton muestra__foco" tabindex="-1" href="#botones">Foco</a>
+          <a class="boton boton--secundario muestra__hover" href="#botones">Hover</a>
+          <a class="boton boton--secundario muestra__foco" tabindex="-1" href="#botones">Foco</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="seccion" id="hoja">
+      <div class="contenedor pila--grande pila">
+        <h2>Hoja con marcas de corte</h2>
+        <div class="hoja marcas">
+          <span class="marcas__esq marcas__esq--nw" aria-hidden="true"></span>
+          <span class="marcas__esq marcas__esq--ne" aria-hidden="true"></span>
+          <span class="marcas__esq marcas__esq--sw" aria-hidden="true"></span>
+          <span class="marcas__esq marcas__esq--se" aria-hidden="true"></span>
+          <div class="pila">
+            <p class="etiqueta etiqueta--guia">Paquete único</p>
+            <h3>Sitio de una página</h3>
+            <p>Pase el mouse sobre la hoja: las marcas se abren 4 px.</p>
+            <p class="precio">$9,870</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="seccion banda">
+      <div class="contenedor pila--grande pila">
+        <h2>Filas con línea</h2>
+        <div>
+          <div class="fila"><span class="fila__etiqueta">Entrega</span><span class="fila__valor">En 7 días hábiles</span></div>
+          <div class="fila"><span class="fila__etiqueta">Incluye</span><span class="fila__valor">Dominio, correo y un año de mantenimiento</span></div>
+          <div class="fila"><span class="fila__etiqueta">Pago</span><span class="fila__valor">Forma de pago de ejemplo</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="seccion">
+      <div class="contenedor pila--grande pila">
+        <h2>Tarjetas de captura</h2>
+        <div class="rejilla">
+          <figure class="captura marcas">
+            <span class="marcas__esq marcas__esq--nw" aria-hidden="true"></span>
+            <span class="marcas__esq marcas__esq--ne" aria-hidden="true"></span>
+            <span class="marcas__esq marcas__esq--sw" aria-hidden="true"></span>
+            <span class="marcas__esq marcas__esq--se" aria-hidden="true"></span>
+            <img class="captura__img" src="/assets/muestra/marcador.svg" width="1200" height="2000" alt="Marcador gris de una captura de pantalla">
+            <figcaption class="captura__pie">Captura de ejemplo, a color y recortada desde arriba.</figcaption>
+          </figure>
+          <figure class="captura marcas">
+            <span class="marcas__esq marcas__esq--nw" aria-hidden="true"></span>
+            <span class="marcas__esq marcas__esq--ne" aria-hidden="true"></span>
+            <span class="marcas__esq marcas__esq--sw" aria-hidden="true"></span>
+            <span class="marcas__esq marcas__esq--se" aria-hidden="true"></span>
+            <img class="captura__img" src="/assets/muestra/marcador.svg" width="1200" height="2000" alt="Marcador gris de otra captura">
+            <figcaption class="captura__pie">Segunda captura, para ver la retícula.</figcaption>
+          </figure>
+          <figure class="captura marcas muestra__abierta">
+            <span class="marcas__esq marcas__esq--nw" aria-hidden="true"></span>
+            <span class="marcas__esq marcas__esq--ne" aria-hidden="true"></span>
+            <span class="marcas__esq marcas__esq--sw" aria-hidden="true"></span>
+            <span class="marcas__esq marcas__esq--se" aria-hidden="true"></span>
+            <img class="captura__img" src="/assets/muestra/marcador.svg" width="1200" height="2000" alt="Marcador gris con marcas abiertas">
+            <figcaption class="captura__pie">Estado abierto (hover forzado).</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="banda banda--tinta u-puntos">
+      <div class="contenedor seccion pila--grande pila">
+        <p class="etiqueta etiqueta--guia">Banda de tinta, con retícula</p>
+        <h2>¿Listo para empezar?</h2>
+        <p>Texto en <strong>--paper</strong> sobre tinta. <a href="#botones">Enlace en banda de tinta</a>.</p>
+        <div class="fila"><span class="fila__etiqueta">Fila en tinta</span><span class="fila__valor">Valor</span></div>
+        <p><a class="boton" href="#botones">Pedir mi sitio</a></p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
