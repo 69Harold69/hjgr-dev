@@ -1,0 +1,10 @@
+.worktrees/
+node_modules/
+.env
+.env.*
+*.log
+.DS_Store
+# Salidas de las pruebas (capturas, reportes)
+scripts/pruebas/salida/
+# Tabla de códigos de /w/<código> y cualquier dato de prospectos: nunca en el repo
+privado/
