@@ -99,7 +99,7 @@ await conPaginas("contraste", a, async ({ paginas, servidor, navegador, falla })
   const lienzo = await (await navegador.newContext()).newPage();
   await lienzo.goto("about:blank");
   for (const ancho of ANCHOS) {
-    const ctx = await navegador.newContext({ viewport: { width: ancho, height: 900 }, colorScheme: "light" });
+    const ctx = await navegador.newContext({ viewport: { width: ancho, height: 900 }, colorScheme: "light", reducedMotion: "reduce" }); // la página ya armada: la entrada del hero (primera visita) no es lo que se mide
     const page = await ctx.newPage();
     for (const p of paginas) {
       await page.goto(servidor.url + p.ruta, { waitUntil: "load" });
