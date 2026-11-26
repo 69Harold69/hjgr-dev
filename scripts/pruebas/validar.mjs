@@ -17,7 +17,10 @@
     formularios    no hay <form>
     meta           lang, un h1, title y description únicos, canonical absoluto dentro de origen, OG y Twitter con imagen
                    absoluta; 404.html con noindex y sin canonical
-    json-ld        JSON válido, sin aggregateRating/review/ratingValue, URLs propias o de hosts-externos.json
+    json-ld        toda página indexable con JSON-LD válido (@context schema.org y @type o @graph); sin aggregateRating, review,
+                   ratingValue, teléfono, correo, horario, calle, código postal, foundingDate, numberOfEmployees ni logo; los
+                   precios (price/minPrice/maxPrice) solo de la lista de precios permitidos y en MXN; URLs propias o de
+                   hosts-externos.json
     sitemap        toda página indexable en sitemap.xml con lastmod y viceversa; robots.txt apunta al sitemap
     imagenes       todo <img> con alt, width y height
     enlaces        enlaces internos a archivos (y anclas) existentes; ningún <a> sin href
@@ -65,7 +68,13 @@ export const IMPERATIVOS_INICIALES = [
 ];
 export const VOZ_PROHIBIDA = ["somos", "nuestro equipo", "nuestra agencia", "agencia"];
 export const MARCADORES = ["52XXXXXXXXXX", "PENDIENTE"];
-const CLAVES_PROHIBIDAS_LD = new Set(["aggregaterating", "review", "ratingvalue"]);
+/* Datos que NO se publican en el JSON-LD: nada que no esté escrito en la página (ni reseñas, ni contacto, ni calle). */
+const CLAVES_PROHIBIDAS_LD = new Set([
+  "aggregaterating", "review", "reviews", "ratingvalue", "ratingcount", "reviewcount", "bestrating", "worstrating",
+  "telephone", "faxnumber", "email", "openinghours", "openinghoursspecification", "streetaddress", "postalcode", "postofficeboxnumber",
+  "foundingdate", "numberofemployees", "logo", "geo", "hasmap",
+]);
+const CLAVES_PRECIO_LD = new Set(["price", "minprice", "maxprice"]);
 const TIPOS_PROHIBIDOS_LD = new Set(["aggregaterating", "review"]);
 const CLAVES_URL_LD = new Set(["@id", "url", "image", "logo", "item", "mainEntityOfPage"]);
 
@@ -244,7 +253,9 @@ const reglas = {
   "json-ld"(ctx) {
     const fallas = porPagina(ctx, (p) => {
       const f = [];
-      for (const s of elementos(p.arbol, "script").filter((x) => attr(x, "type") === "application/ld+json")) {
+      const scripts = elementos(p.arbol, "script").filter((x) => attr(x, "type") === "application/ld+json");
+      if (!scripts.length && !p.noindex && !p.es404) f.push(`${p.archivo} la página indexable no tiene JSON-LD (<script type="application/ld+json">)`);
+      for (const s of scripts) {
         let datos;
         try {
           datos = JSON.parse(textoDe(s));
@@ -252,12 +263,19 @@ const reglas = {
           f.push(`${donde(p, s)} JSON-LD no es JSON válido: ${e.message}`);
           continue;
         }
+        if (!datos || typeof datos !== "object" || !/^https:\/\/schema\.org\/?$/.test(String([].concat(datos["@context"] ?? "")[0]))) f.push(`${donde(p, s)} JSON-LD sin "@context": "https://schema.org"`);
+        if (datos && typeof datos === "object" && !datos["@type"] && !datos["@graph"]) f.push(`${donde(p, s)} JSON-LD sin "@type" ni "@graph"`);
         const ir = (v, clave) => {
           if (Array.isArray(v)) return v.forEach((x) => ir(x, clave));
           if (v && typeof v === "object") {
             for (const [k, x] of Object.entries(v)) {
-              if (CLAVES_PROHIBIDAS_LD.has(k.toLowerCase())) f.push(`${donde(p, s)} JSON-LD con «${k}» (no se inventan reseñas ni calificaciones)`);
+              if (CLAVES_PROHIBIDAS_LD.has(k.toLowerCase())) f.push(`${donde(p, s)} JSON-LD con «${k}» (solo se publica lo que está escrito en la página; sin reseñas, contacto, calle ni datos inventados)`);
               if (k === "@type") for (const t of [].concat(x)) TIPOS_PROHIBIDOS_LD.has(String(t).toLowerCase()) && f.push(`${donde(p, s)} JSON-LD con @type «${t}»`);
+              if (CLAVES_PRECIO_LD.has(k.toLowerCase())) {
+                const n = Number(String(x).replace(/[$,\s]/g, ""));
+                if (!Number.isFinite(n) || !PRECIOS_PERMITIDOS.includes(n)) f.push(`${donde(p, s)} JSON-LD «${k}» = ${JSON.stringify(x)} no está en la lista de precios permitidos`);
+              }
+              if (k === "priceCurrency" && x !== "MXN") f.push(`${donde(p, s)} JSON-LD priceCurrency «${x}» debe ser MXN`);
               ir(x, k);
             }
           } else if (typeof v === "string" && CLAVES_URL_LD.has(clave) && /^https?:\/\//i.test(v)) {
