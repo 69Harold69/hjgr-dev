@@ -80,6 +80,7 @@ CASOS = {
     "precio-sin-signo": ("validar", {"precios"}),
     "precio-en-otra-fila": ("validar", {"precios"}),
     "json-ld-precio-en-otra-fila": ("validar", {"json-ld"}),
+    "foto-pendiente": ("validar", {"marcadores"}),  # con --estricto; sin él, solo avisa
     "contraste-bajo": ("contraste", set()),
     "boton-chico": ("tactil", set()),
     "sin-outline": ("foco", set()),
@@ -259,6 +260,20 @@ class PruebasContacto(SitioTemporal):
     def test_exigir_reales_pasa_sin_marcadores(self):
         r = py("contacto.py", "--exigir-reales", "--check", "--raiz", str(self.raiz))
         self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_exigir_reales_falla_si_una_pagina_conserva_la_foto_pendiente(self):
+        # sitio.json ya trae datos reales, pero la página sigue con el hueco de la foto: no se puede publicar.
+        self.escribir("index.html", self.leer("index.html").replace("<img ", '<div class="foto__espacio">Foto pendiente</div>\n<img ', 1))
+        r = py("contacto.py", "--exigir-reales", "--raiz", str(self.raiz))
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("Foto pendiente", r.stdout)
+
+    def test_exigir_reales_falla_si_una_pagina_conserva_un_marcador_escrito_a_mano(self):
+        p = self.raiz / "privacidad" / "index.html"
+        p.write_text(p.read_text(encoding="utf-8").replace("</main>", '<p><a href="https://cal.com/PENDIENTE">Llamada</a></p></main>'), encoding="utf-8")
+        r = py("contacto.py", "--exigir-reales", "--raiz", str(self.raiz))
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("privacidad/index.html", r.stdout)
 
     def test_tipo_desconocido_falla(self):
         self.escribir("index.html", self.leer("index.html").replace('data-contacto="cal"', 'data-contacto="fax"'))

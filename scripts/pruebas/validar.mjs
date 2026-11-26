@@ -30,7 +30,7 @@
     precios        cifras con $ solo de la lista exacta; ninguna termina en 99 o 990 ni es redonda; ninguna cifra con
                    separador de miles sin $; en toda tabla con columna «Servicio», cada fila es un servicio de
                    PRECIOS_POR_SERVICIO y lleva exactamente SUS cifras (y el JSON-LD, en la regla json-ld, también)
-    marcadores     avisa de 52XXXXXXXXXX / PENDIENTE (con --estricto, falla)
+    marcadores     avisa de 52XXXXXXXXXX / PENDIENTE y del hueco de la foto («Foto pendiente», .foto__espacio) (con --estricto, falla)
     giros          corre giros.py --check: cada <giro>/index.html es exactamente lo que generan index.html y scripts/giros/<giro>.json
     dominio, versionado, contacto   corren dominio.py, versionar.py y contacto.py con --check
 */
@@ -496,7 +496,10 @@ const reglas = {
   },
 
   marcadores(ctx, args) {
-    const hallazgos = porPagina(ctx, (p) => MARCADORES.filter((m) => p.html.includes(m)).map((m) => `${p.archivo} aún contiene el marcador ${m}`));
+    const hallazgos = porPagina(ctx, (p) => [
+      ...MARCADORES.filter((m) => p.html.includes(m)).map((m) => `${p.archivo} aún contiene el marcador ${m}`),
+      ...MARCADORES_RE.filter(([re]) => re.test(p.html)).map(([, que]) => `${p.archivo} aún contiene ${que}`),
+    ]);
     return args.estricto ? { fallas: hallazgos } : { fallas: [], avisos: hallazgos };
   },
 
