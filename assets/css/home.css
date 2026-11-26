@@ -702,8 +702,8 @@
 }
 
 /*
- * Animaciones de la home (#7): entrada del hero y línea de las seis etapas. Las dirige assets/js/main.js.
- * Regla de oro: lo «oculto para animar» solo existe bajo una clase que el JS pone en <html> (js-entrada, js-etapas),
+ * Animaciones de la home (#7, #31): entrada del hero y armado de cada sección al entrar en pantalla (incluida la línea de las seis etapas). Las dirige assets/js/main.js.
+ * Regla de oro: lo «oculto para animar» solo existe bajo una clase que el JS pone en <html> (js-entrada, js-secciones),
  * nunca por defecto. Sin JS, con movimiento reducido o si algo falla, todo se ve. js-entrada además trae su
  * propia salida a los 2.5 s (animación entrada-seguro; la retira entrada-activa si main.js arranca), por si el JS que la quita no llegara a correr.
  * Solo transform y opacity. Capa: componentes.
@@ -821,17 +821,133 @@
       line-height: 1.2;
     }
 
-    /* ---------- Línea de las seis etapas ---------- */
-    .js-etapas .proceso__linea {
-      transform: scaleY(0);
+    @media screen {
+    /* ---------- Secciones: las arman los cursores al entrar en pantalla ---------- */
+    /* Todo lo «desarmado» existe SOLO bajo .js-secciones (la pone inicio.js) y mientras la sección no tenga .armada.
+       Solo se esconde lo visual (líneas, bordes, marcas de corte, capturas, resaltado); el texto jamás. Las líneas que
+       se dibujan son capas propias (pseudo-elementos con scaleX/scaleY); el borde real se pone transparente (no cambia
+       ninguna medida) y vuelve al quedar armada la sección. Las anima main.js con la Web Animations API. */
+    .js-secciones main > section:not(.hero) {
+      position: relative;
     }
-    .js-etapas .proceso__marca {
-      opacity: 0;
+    /* Capa de cursores de una sección: dentro de ella, recortada, sin tocar el layout ni los toques. */
+    .cursores-seccion {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      overflow: clip;
+      pointer-events: none;
     }
+
+    /* Líneas que se dibujan (capas): comparten forma; cada una trae su color y su posición. */
+    .js-secciones main > section:not(.armada) .problemas::before,
+    .js-secciones main > section:not(.armada) .problemas__fila::after,
+    .js-secciones main > section:not(.armada) .fila::before,
+    .js-secciones main > section:not(.armada) .fila:last-child::after,
+    .js-secciones main > section:not(.armada) .captura__cuerpo::before,
+    .js-secciones main > section:not(.armada) .paso::after,
+    .js-secciones main > section:not(.armada) .faq::before,
+    .js-secciones main > section:not(.armada) .faq__item::after,
+    .js-secciones main > section:not(.armada) .cierre__titulo::after,
+    .js-secciones main > .cierre:not(.armada)::before {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      height: 1px;
+      transform: scaleX(0);
+      transform-origin: left;
+      pointer-events: none;
+    }
+    .js-secciones main > section:not(.armada) .problemas,
+    .js-secciones main > section:not(.armada) .problemas__fila,
+    .js-secciones main > section:not(.armada) .fila,
+    .js-secciones main > section:not(.armada) .captura__cuerpo,
+    .js-secciones main > section:not(.armada) .faq,
+    .js-secciones main > section:not(.armada) .faq__item,
+    .js-secciones main > section:not(.armada) .cierre__titulo {
+      position: relative;
+    }
+
+    /* 3. Problemas */
+    .js-secciones main > section:not(.armada) .problemas { border-top-color: transparent; }
+    .js-secciones main > section:not(.armada) .problemas::before { top: -1px; background-color: var(--ink); }
+    .js-secciones main > section:not(.armada) .problemas__fila { border-bottom-color: transparent; }
+    .js-secciones main > section:not(.armada) .problemas__fila::after { bottom: -1px; background-color: var(--rule); }
+
+    /* 4. Sistemas: la línea de las seis etapas (con sus marcas) y las filas */
+    .js-secciones main > section:not(.armada) .proceso__linea { transform: scaleY(0); }
+    .js-secciones main > section:not(.armada) .proceso__marca { opacity: 0; }
+    .js-secciones main > section:not(.armada) .fila { border-top-color: transparent; }
+    .js-secciones main > section:not(.armada) .fila:last-child { border-bottom-color: transparent; }
+    .js-secciones main > section:not(.armada) .fila::before { top: -1px; background-color: var(--rule); }
+    .js-secciones main > section:not(.armada) .fila:last-child::after { bottom: -1px; background-color: var(--rule); }
     @media (min-width: 768px) {
-      .js-etapas .proceso__linea {
-        transform: scaleX(0);
+      .js-secciones main > section:not(.armada) .proceso__linea { transform: scaleX(0); }
+    }
+
+    /* 6. Trabajo: marcas de corte y capturas dentro de su marco (sus medidas ya están reservadas) */
+    .js-secciones main > section:not(.armada) .trabajo .marcas__esq,
+    .js-secciones main > section:not(.armada) .foto .marcas__esq,
+    .js-secciones main > section:not(.armada) .captura__img { opacity: 0; }
+    .js-secciones main > section:not(.armada) .captura__cuerpo { border-top-color: transparent; }
+    .js-secciones main > section:not(.armada) .captura__cuerpo::before { top: -1px; background-color: var(--rule); }
+
+    /* 7. Cómo trabajo: la línea naranja bajo cada número (el número es texto y queda a la vista) */
+    .js-secciones main > section:not(.armada) .paso::before { border-bottom-color: transparent; }
+    .js-secciones main > section:not(.armada) .paso::after {
+      inset-inline: var(--espacio-3);
+      top: calc(var(--espacio-3) + var(--titulo-2) + var(--espacio-2));
+      background-color: var(--accent);
+    }
+    .js-secciones main > section:not(.armada) .paso { position: relative; }
+
+    /* 8. Precios: el resaltado de la fila del diagnóstico (una capa por celda; en celular, dos mitades de la fila) */
+    .js-secciones main > section:not(.armada) .tabla__destacada th,
+    .js-secciones main > section:not(.armada) .tabla__destacada td {
+      position: relative;
+      isolation: isolate;
+      background-color: transparent;
+    }
+    .js-secciones main > section:not(.armada) .tabla__destacada th::after,
+    .js-secciones main > section:not(.armada) .tabla__destacada td::after,
+    .js-secciones main > section:not(.armada) tr.tabla__destacada::before,
+    .js-secciones main > section:not(.armada) tr.tabla__destacada::after {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      background-color: var(--paper-2);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .js-secciones main > section:not(.armada) .tabla__destacada th::after,
+    .js-secciones main > section:not(.armada) .tabla__destacada td::after { inset: 0; }
+    @media (max-width: 639.98px) {
+      .js-secciones main > section:not(.armada) .tabla__destacada th::after,
+      .js-secciones main > section:not(.armada) .tabla__destacada td::after { display: none; }
+      .js-secciones main > section:not(.armada) tr.tabla__destacada {
+        position: relative;
+        isolation: isolate;
+        background-color: transparent;
       }
+      .js-secciones main > section:not(.armada) tr.tabla__destacada::before { inset: 0 50% 0 0; }
+      .js-secciones main > section:not(.armada) tr.tabla__destacada::after { inset: 0 0 0 50%; }
+    }
+    @media (min-width: 640px) {
+      .js-secciones main > section:not(.armada) tr.tabla__destacada::before,
+      .js-secciones main > section:not(.armada) tr.tabla__destacada::after { display: none; }
+    }
+
+    /* 9. Quién: marcas de la foto y líneas de las preguntas */
+    .js-secciones main > section:not(.armada) .faq { border-top-color: transparent; }
+    .js-secciones main > section:not(.armada) .faq::before { top: -1px; background-color: var(--ink); }
+    .js-secciones main > section:not(.armada) .faq__item { border-bottom-color: transparent; }
+    .js-secciones main > section:not(.armada) .faq__item::after { bottom: -1px; background-color: var(--rule); }
+
+    /* 10. Cierre: la línea naranja del título y el filete de arriba */
+    .js-secciones main > section:not(.armada) .cierre__titulo { border-bottom-color: transparent; }
+    .js-secciones main > section:not(.armada) .cierre__titulo::after { bottom: -1px; background-color: var(--accent); }
+    .js-secciones main > .cierre:not(.armada) { border-top-color: transparent; }
+    .js-secciones main > .cierre:not(.armada)::before { top: -1px; background-color: var(--rule); }
     }
   }
 
@@ -856,8 +972,15 @@
     .proceso__linea {
       transform: none !important;
     }
+    .captura__img,
+    .trabajo .marcas__esq,
+    .foto .marcas__esq {
+      opacity: 1 !important;
+      transform: none !important;
+    }
     .entrada,
-    .entrada__saltar {
+    .entrada__saltar,
+    .cursores-seccion {
       display: none !important;
     }
   }

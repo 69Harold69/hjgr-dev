@@ -5,9 +5,22 @@
  * quita la clase y los restos, con el estado final aplicado al instante (sin transiciones). Si main.js sí arrancó,
  * él mismo termina a los 3.9 s. El CSS tiene además su propia salida a los 2.5 s (se retira con entrada-activa),
  * por si este archivo o main.js fallaran.
+ * También decide el armado de las secciones al hacer scroll (js-secciones, #31): sin movimiento reducido y con
+ * animaciones e IntersectionObserver disponibles. Respaldo: si a los 4 s main.js no tomó el control (no puso
+ * secciones-activa), se quita js-secciones y todo queda armado.
  */
 (function () {
   var html = document.documentElement;
+  try {
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches && html.animate && "IntersectionObserver" in window) {
+      setTimeout(function () {
+        if (!html.classList.contains("secciones-activa")) html.classList.remove("js-secciones");
+      }, 4000);
+      html.classList.add("js-secciones");
+    }
+  } catch (e) {
+    html.classList.remove("js-secciones");
+  }
   try {
     if (location.hash || window.scrollY > 0 || matchMedia("(prefers-reduced-motion: reduce)").matches || !html.animate) return;
     html.classList.add("js-entrada");
