@@ -12,3 +12,4 @@
 .muestra__abierta .marcas__esq--sw::after { transform: translateY(var(--marca-abre)); }
 .muestra__abierta .marcas__esq--se::before { transform: translateX(var(--marca-abre)); }
 .muestra__abierta .marcas__esq--se::after { transform: translateY(var(--marca-abre)); }
+.muestra__titulo-1 { font-size: var(--titulo-1); }

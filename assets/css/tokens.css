@@ -38,6 +38,7 @@
   --titulo-2: clamp(2rem, 1.5rem + 2.5vw, 3.25rem);
   --titulo-3: clamp(1.5rem, 1.3rem + 1vw, 2rem);
   --titulo-4: clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem);
+  --titulo-gigante: clamp(2.75rem, 0.5rem + 13vw, 9rem);    /* titular del cierre */
 
   /* Espacio */
   --espacio-1: 0.5rem;
@@ -51,6 +52,7 @@
   --margen: 24px;      /* lateral en celular */
   --ancho-max: 72rem;  /* contenido, sin contar márgenes */
   --toque: 44px;       /* área táctil mínima */
+  --barra-alto: 4.5rem; /* barra fija: 72 px, múltiplo de la retícula de puntos (24 px) */
 
   /* Marcas de corte */
   --marca-largo: 10px;
