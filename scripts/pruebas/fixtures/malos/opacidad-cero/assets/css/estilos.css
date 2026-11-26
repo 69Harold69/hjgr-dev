@@ -1,0 +1,33 @@
+:root {
+  --texto: #1a1a1a;
+  --fondo: #ffffff;
+  --acento: #0b4fa8;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 18px/1.5 system-ui, sans-serif;
+  color: var(--texto);
+  background: var(--fondo);
+}
+header, main, footer { max-width: 40rem; margin: 0 auto; padding: 8px 16px; }
+a {
+  display: inline-block;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 10px 16px;
+  color: var(--acento);
+  text-decoration: underline;
+}
+.boton {
+  color: #ffffff;
+  background: var(--acento);
+  text-decoration: none;
+  border-radius: 6px;
+}
+a:focus-visible { outline: 3px solid var(--acento); outline-offset: 2px; }
+.boton:focus-visible { outline-color: #000000; }
+h1 { font-size: 2rem; line-height: 1.2; }
+img { max-width: 100%; height: auto; }
+
+.oculto { opacity: 0; }

@@ -15,7 +15,7 @@ Sitio estático, HTML, CSS y JavaScript **sin paso de build**: lo que está en e
 | `privacidad/index.html` | Aviso de privacidad | Pendiente (#10) |
 | `404.html`, `sitemap.xml`, `robots.txt` | Página de error y SEO técnico | Pendiente (#9) |
 | `assets/css`, `assets/js`, `assets/fuentes`, `assets/img` | Estilos, scripts, fuentes e imágenes, todo alojado aquí | Pendiente (#3) |
-| `scripts/` | Herramientas y pruebas. El servidor no lo sirve | Pendiente (#2) |
+| `scripts/` | Herramientas (`versionar.py`, `dominio.py`, `contacto.py`), datos del sitio (`sitio.json`, `hosts-externos.json`) y pruebas (`pruebas/`). El servidor no lo sirve | Listo (#2) |
 
 ## Reglas del sitio
 
@@ -35,7 +35,39 @@ Sitio estático, HTML, CSS y JavaScript **sin paso de build**: lo que está en e
 
 ## Cómo probar
 
-Pendiente (#2). Va a ser un solo comando que corre toda la suite contra un servidor local con las mismas cabeceras que producción.
+Requisitos: Node 22 o superior, Python 3 (solo biblioteca estándar) y Chromium del sistema. Las pruebas usan Playwright con ese Chromium (`/usr/bin/chromium`, o la ruta de `CHROME_PATH`); no se descarga ningún navegador.
+
+```sh
+npm ci --prefix scripts/pruebas   # una sola vez (desde la raíz del repo)
+node scripts/pruebas/todo.mjs     # toda la suite, un solo comando
+```
+
+`todo.mjs` corre todos los pasos sin detenerse en el primero que falle, imprime un resumen OK/FALLA por paso y sale con código distinto de 0 si algo falla. Opciones: `--raiz DIR` (otro sitio), `--sin-lighthouse` (omite Lighthouse, que es lo más lento), `--corridas N`, `--estricto` (los marcadores `52XXXXXXXXXX` y `PENDIENTE` fallan; úselo antes de publicar) y `--solo-registro`.
+
+**Sin páginas.** Mientras el repo no tenga páginas reales, `todo.mjs` avisa «0 páginas del sitio» y corre los pasos de navegador contra `scripts/pruebas/fixtures/bueno` (el mini sitio de referencia, que debe pasarlo todo), además de revisar del repo real la CSP del README y `dominio`, `versionado` y `contacto`. En cuanto exista un `.html`, todo corre contra el sitio.
+
+Cada prueba descubre sola las páginas (todos los `.html`, sin `scripts/`, `node_modules/` ni `.worktrees/`), acepta `--raiz DIR` y se puede correr suelta, desde `scripts/pruebas/`:
+
+| Comando | Qué comprueba |
+| --- | --- |
+| `node validar.mjs [--solo regla,...] [--estricto]` | Reglas estáticas: `html-validate`, `csp-estatica`, `csp-readme`, `formularios`, `meta`, `json-ld`, `sitemap`, `imagenes`, `enlaces`, `trato` (de usted), `voz`, `precios`, `marcadores`, `dominio`, `versionado`, `contacto`. `--lista` las enumera |
+| `node sin-js.mjs` | Con JavaScript apagado, en 1440, 768, 390 y 320 px: `<h1>` y enlaces de contacto visibles, sin scroll horizontal ni texto con opacidad 0 |
+| `node tactil.mjs` | En 390 px, todo `a`, `button` y `summary` mide al menos 44×44 px (excepción: atributo `data-tactil-excepcion`) |
+| `node foco.mjs` | Tabulando, cada elemento enfocable muestra un indicador de foco visible |
+| `node contraste.mjs` | Contraste de todo el texto visible con píxeles reales, tema claro: 4.5:1, o 3:1 para texto grande |
+| `node cls.mjs [--max 0]` | Layout Instability con red limitada en 360, 390 y 412 px |
+| `node lighthouse.mjs [--corridas 3]` | Móvil y escritorio, las cuatro categorías, mediana de N corridas; falla por debajo de 95 |
+| `node capturas.mjs` | Capturas de página completa en 1440, 768, 390 y 320 px en `scripts/pruebas/salida/` (ignorada por git) |
+| `python3 -I test_herramientas.py [--rapido]` | Pruebas de las propias herramientas: `fixtures/bueno` pasa todo y cada `fixtures/malos/<caso>` falla por su regla |
+| `node lib/servidor.mjs [--raiz DIR]` | Solo el servidor local, con las cabeceras de producción (también en los 404) |
+
+Herramientas que escriben en los `.html` (todas aceptan `--check`, que no escribe y sale con 1 si algo no coincide, y `--raiz DIR`):
+
+- `python3 scripts/versionar.py`: sella `?v=<hash>` en los CSS y JS propios. Córralo cada vez que cambie algo de `assets/css` o `assets/js`.
+- `python3 scripts/dominio.py [--origen https://x.y]`: reescribe canonical, `og:url`, `og:image`, Twitter, JSON-LD, `sitemap.xml` y `robots.txt` según `origen` de `scripts/sitio.json`. Los hosts externos permitidos viven en `scripts/hosts-externos.json`.
+- `python3 scripts/contacto.py [--exigir-reales]`: escribe el `href` de los `<a data-contacto="whatsapp">` y `<a data-contacto="cal">` a partir de `scripts/sitio.json`. Mientras `whatsapp`, `cal` o `foto` sean marcadores (`52XXXXXXXXXX`, `PENDIENTE`) avisa; `--exigir-reales` falla si queda alguno.
+
+Si cambia la CSP, cámbiela en este README y en `scripts/pruebas/lib/servidor.mjs`: la regla `csp-readme` exige que sean idénticas.
 
 ## Cómo se publica
 
