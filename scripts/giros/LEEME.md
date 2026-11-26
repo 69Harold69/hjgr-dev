@@ -12,7 +12,7 @@ Para crear un giro nuevo (`fumigadoras`, `uniformes`, `distribuidoras`, `tallere
   "titulo": "Texto del <title> y de og:title / twitter:title",
   "descripcion": "Texto de la meta description, de og:description / twitter:description y de la descripción del JSON-LD.",
   "hero": "Opcional: párrafo bajo el titular.",
-  "antes_de_etapas": "Opcional: párrafo inmediatamente antes de la sección de las seis etapas.",
+  "intro_etapas": "Opcional: entrada de la sección de las seis etapas.",
   "preguntas": [{ "pregunta": "¿Opcional?", "respuesta": "Preguntas propias del giro." }],
   "problemas": [
     { "texto": "Primer problema.", "enlace": { "texto": "Sistemas internos", "href": "#sistemas" } },
@@ -28,7 +28,7 @@ Para crear un giro nuevo (`fumigadoras`, `uniformes`, `distribuidoras`, `tallere
 | `titulo` | sí | `<title>`, `og:title` y `twitter:title` |
 | `descripcion` | sí | `meta description`, `og:description`, `twitter:description` y `description` del nodo `Service` del JSON-LD |
 | `hero` | no | Reemplaza el párrafo bajo el `<h1>`. Si falta, queda el de la home |
-| `antes_de_etapas` | no | Agrega, inmediatamente antes de la sección de las seis etapas, una `<section class="seccion">` con un `<p class="seccion__intro">` (estilo ya existente). Si falta, no se agrega nada |
+| `intro_etapas` | no | Reemplaza la entrada (`<p class="seccion__intro">`) bajo el H2 de la sección de las seis etapas. No agrega ninguna sección. Si falta, queda la de la home |
 | `preguntas` | no | Lista de `{ "pregunta", "respuesta" }`. Se agregan ANTES de las preguntas generales, con el mismo marcado (`<details class="faq__item">`). No hay JSON-LD de preguntas en el sitio, así que no se toca |
 | `problemas` | sí | Exactamente 3 filas, en el orden en que se muestran |
 | `problemas[].texto` | sí | La frase de la fila |
@@ -50,6 +50,7 @@ La plantilla es `index.html`; los puntos sustituibles llevan `data-giro="..."`. 
 | --- | --- | --- |
 | `data-giro="h1"` | el `<h1>` | se reemplaza su contenido por las frases de `h1` |
 | `data-giro="hero"` | el `<p>` bajo el `<h1>` | se reemplaza su contenido por `hero` (si el dato lo trae) |
+| `data-giro="intro-etapas"` | el `<p class="seccion__intro">` de la sección de etapas | se reemplaza su contenido por `intro_etapas` (si el dato lo trae) |
 | `data-giro="faq"` | el `<div class="faq">` | `preguntas` se insertan al inicio |
 | `data-giro="problemas"` | la `<section>` de los tres problemas | delimita dónde están las filas; las etapas se colocan antes de ella |
 | `data-giro="problema"` | cada `<li>` de problema (3) | su `<p class="problemas__frase">` y su `<a>` se sustituyen |

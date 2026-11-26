@@ -381,7 +381,7 @@ class PruebasGiros(unittest.TestCase):
         self.assertIn("<p>hjgr.dev, 2026</p>", self.leer("vidrierias/index.html"), "el resto de la página sigue a la plantilla")
 
     def test_falta_una_marca_falla_con_mensaje_claro_y_no_escribe(self):
-        for marca in ["h1", "hero", "faq", "problemas", "problema", "etapas", "json-ld"]:
+        for marca in ["h1", "hero", "intro-etapas", "faq", "problemas", "problema", "etapas", "json-ld"]:
             with self.subTest(marca=marca):
                 original = self.leer("index.html")
                 self.assertIn(f'data-giro="{marca}"', original, f"la plantilla debe tener la marca {marca}")
@@ -493,7 +493,7 @@ class PruebasGiros(unittest.TestCase):
         self.assertEqual(re.search(r'og:image" content="([^"]*)"', home).group(1), re.search(r'og:image" content="([^"]*)"', pagina).group(1))
 
     def test_textos_propios_del_giro_solo_en_su_pagina(self):
-        # Texto del hero, párrafo antes de las etapas y preguntas propias ANTES de las generales; la home no cambia.
+        # Texto del hero, entrada de las etapas y preguntas propias ANTES de las generales; la home no cambia.
         self.gen()
         home = self.leer("index.html")
         pagina = self.leer("vidrierias/index.html")
@@ -508,8 +508,18 @@ class PruebasGiros(unittest.TestCase):
         self.assertNotIn("Hago sistemas, automatizaciones y webs", pagina)
         self.assertIn("Hago sistemas, automatizaciones y webs", home)
         self.assertEqual(pagina.count(parrafo), 1)
-        self.assertLess(pagina.index(parrafo), pagina.index('id="sistemas"'))
-        self.assertGreater(pagina.index(parrafo), pagina.index("</section>", pagina.index('class="hero')))
+        # El párrafo propio vive DENTRO de la sección de etapas, en lugar de la entrada genérica; no hay sección suelta.
+        generica = "He programado sistemas que siguen cada pedido de principio a fin"
+        ini = pagina.index('id="sistemas"')
+        fin = pagina.index("</section>", ini)
+        self.assertGreater(pagina.index(parrafo), pagina.index('id="sistemas-titulo"'))
+        self.assertLess(pagina.index(parrafo), pagina.index('class="proceso"'))
+        self.assertTrue(ini < pagina.index(parrafo) < fin)
+        self.assertIn(f'<p class="seccion__intro">{parrafo}</p>', pagina)
+        self.assertNotIn(generica, pagina)
+        self.assertIn(generica, home)
+        self.assertEqual(pagina.count('class="seccion__intro"'), home.count('class="seccion__intro"'), "ninguna sección suelta con intro")
+        self.assertEqual(pagina.count('<section class="seccion">'), home.count('<section class="seccion">'))
         posiciones = []
         for q, r in preguntas:
             trozo = f'<details class="faq__item">\n              <summary>{q}</summary>\n              <p>{r}</p>\n            </details>'
