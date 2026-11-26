@@ -10,7 +10,7 @@
  * Los estados «desarmados» viven en home.css bajo .js-entrada y .js-secciones. Si algo falla, se quitan las clases y todo queda visible.
  */
 const html = document.documentElement;
-const reducido = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const reducido = matchMedia("(prefers-reduced-motion: reduce)");
 
 /* ---------------------------------------------------------------------------------------------
    Piezas comunes: cursores, «Saltar» y el estado de la visita (todo en memoria; nada se guarda)
@@ -564,4 +564,11 @@ try {
   secciones();
 } catch (e) {
   html.classList.remove("js-secciones");
+}
+// Si el visitante activa «reducir movimiento» a mitad de la visita, se apaga todo como con «Saltar»: los estilos de los
+// cursores solo existen sin movimiento reducido, así que una animación en curso dejaría cursores sin estilo y un salto de layout.
+try {
+  reducido.addEventListener("change", (e) => e.matches && apagar());
+} catch (e) {
+  /* navegador sin addEventListener en MediaQueryList: nada que hacer */
 }
