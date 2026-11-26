@@ -62,6 +62,8 @@ function sinRegistrar(carpeta) {
   const lib = path.join(carpeta, "lib");
   if (fs.existsSync(lib)) for (const e of fs.readdirSync(lib, { withFileTypes: true })) if (e.isFile() && e.name.endsWith(".mjs")) candidatos.push(`lib/${e.name}`);
   const registrados = new Set(pasos.flatMap(([, , args]) => args.filter((x) => /\.(mjs|py)$/.test(x))));
+  // Lighthouse está registrado aunque esta corrida lo salte con --sin-lighthouse.
+  if (sinLh) registrados.add("lighthouse.mjs");
   return candidatos.filter((c) => !registrados.has(c) && !(c in EXCEPCIONES));
 }
 const carpetaGuardia = a.carpeta && a.carpeta !== true ? path.resolve(String(a.carpeta)) : AQUI;
