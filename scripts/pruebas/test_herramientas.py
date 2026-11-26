@@ -345,6 +345,23 @@ class PruebasContacto(SitioTemporal):
 REPO = SCRIPTS.parent
 
 
+class PruebasAvisoDePrivacidad(unittest.TestCase):
+    """El sitio real: /privacidad/ existe, está en el sitemap y todas las páginas la enlazan desde el pie."""
+
+    def test_pagina_sitemap_y_pie_de_todas(self):
+        self.assertTrue((REPO / "privacidad" / "index.html").exists())
+        self.assertIn("<loc>https://hjgr.dev/privacidad/</loc>", (REPO / "sitemap.xml").read_text(encoding="utf-8"))
+        paginas = ["index.html", "404.html", "privacidad/index.html", "vidrierias/index.html"]
+        for p in paginas:
+            texto = (REPO / p).read_text(encoding="utf-8")
+            pie = texto[texto.index('<footer class="pie">'):]
+            self.assertIn('href="/privacidad/">Aviso de privacidad</a>', pie, p)
+
+    def test_la_fecha_de_vigencia_tiene_su_marcador(self):
+        self.assertIn("aviso_vigente", json.loads((SCRIPTS / "sitio.json").read_text(encoding="utf-8")))
+        self.assertIn("data-aviso-vigente", (REPO / "privacidad" / "index.html").read_text(encoding="utf-8"))
+
+
 def copiar_repo_para_giros(destino):
     """Copia mínima del sitio real (HTML, assets de CSS/JS, scripts y datos) para probar el orden de las herramientas."""
     destino = pathlib.Path(destino)

@@ -155,8 +155,32 @@
   .pie__interior {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: var(--espacio-1) var(--espacio-4);
     justify-content: space-between;
+  }
+
+  /* ---------- Prosa: página de texto largo (aviso de privacidad) ---------- */
+  .prosa {
+    max-width: 42rem;
+  }
+  .prosa > * + * {
+    margin-top: var(--espacio-2);
+  }
+  .prosa h1 {
+    font-size: var(--titulo-2);
+  }
+  .prosa h2 {
+    margin-top: var(--espacio-4);
+    font-size: var(--titulo-3);
+    line-height: 1.1;
+  }
+  .prosa h2 + * {
+    margin-top: var(--espacio-2);
+  }
+  .prosa ul {
+    display: grid;
+    gap: var(--espacio-1);
   }
 
   /* ---------- Etiqueta ---------- */

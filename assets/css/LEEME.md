@@ -15,6 +15,7 @@ Convención de nombres: `.bloque`, `.bloque__elemento`, `.bloque--variante`, `.u
 | `.boton` | Botón principal: único con relleno naranja, texto `--ink`, 44 px mínimo. |
 | `.boton--secundario` | Con `.boton`: borde de 1 px en tinta, sin relleno; en hover se rellena de tinta. |
 | `.enlace-accion` | Enlace de acción con área táctil de 44 px. |
+| `.prosa` | Columna de lectura (42 rem) para páginas de texto largo: separa hijos, h1 a `--titulo-2`, h2 a `--titulo-3` con más aire arriba, listas con hueco. Solo en `/privacidad/` |
 | `.etiqueta`, `.etiqueta--guia` | Texto chico Geist 500 en `--muted`; la variante añade una línea guía naranja de 1 px. |
 | `.nombre`, `.precio` | Hedvig fuera de los títulos (nombre y precios). |
 | `.hoja` | Hoja de papel (`--paper-hi`) con `--shadow-sheet`. |
