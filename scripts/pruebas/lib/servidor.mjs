@@ -2,7 +2,7 @@
   Servidor estático que emula lo relevante de producción:
     - try_files {path} {path}/index.html {path}.html;
     - 404 con 404.html (y estado 404);
-    - oculta .git*, README.md, scripts, package.json, package-lock.json y node_modules;
+    - oculta .git*, *.md, .env*, privado, scripts, package.json, package-lock.json y node_modules;
     - compresión gzip/zstd de texto;
     - las MISMAS cabeceras de seguridad (CSP incluida), también en los 404.
   Si algo viola la CSP aquí, también la violará en producción.
@@ -32,7 +32,8 @@ export const CABECERAS = {
 };
 
 /* Nombres que no se sirven en ninguna profundidad (archivo o carpeta), con comodines. */
-export const OCULTOS = [".git*", "README.md", "scripts", "package.json", "package-lock.json", "node_modules"];
+// `*.md` cubre README.md y las notas LEEME.md que viven junto a los assets; `.env*` y `privado` nunca se sirven.
+export const OCULTOS = [".git*", "*.md", ".env*", "privado", "scripts", "package.json", "package-lock.json", "node_modules"];
 const aRegex = (patron) => new RegExp(`^${patron.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".")}$`);
 const REGEX_OCULTOS = OCULTOS.map(aRegex);
 export const estaOculto = (ruta) => ruta.split("/").filter(Boolean).some((seg) => REGEX_OCULTOS.some((r) => r.test(seg)));
