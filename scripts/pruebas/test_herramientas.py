@@ -593,6 +593,21 @@ class PruebasServidor(unittest.TestCase):
             for k, v in esperadas.items():
                 self.assertEqual(cab.get(k), v, f"{ruta} {k}")
 
+    def test_todo_archivo_publico_del_sitio_real_tiene_su_tipo(self):
+        # Con X-Content-Type-Options: nosniff, un tipo genérico (octet-stream) puede hacer que el navegador rechace el
+        # archivo; el servidor de pruebas debe dar el mismo tipo que daría producción a todo lo que se sirve.
+        self._parar()
+        self.proc = subprocess.Popen(["node", str(AQUI / "lib/servidor.mjs"), "--raiz", str(REPO)], stdout=subprocess.PIPE, text=True)
+        self.base = re.search(r"(http://127\.0\.0\.1:\d+)", self.proc.stdout.readline()).group(1)
+        archivos = [p for p in (REPO / "assets").rglob("*") if p.is_file()] + [REPO / "favicon.ico"]
+        for p in archivos:
+            ruta = "/" + p.relative_to(REPO).as_posix()
+            estado, cab, _ = self.get(ruta)
+            if estado == 404:
+                continue  # oculto a propósito (*.md)
+            with self.subTest(ruta=ruta):
+                self.assertNotEqual(cab.get("Content-Type", ""), "application/octet-stream")
+
     def test_compresion(self):
         _, cab, cuerpo = self.get("/assets/css/estilos.css", **{"Accept-Encoding": "gzip"})
         self.assertEqual(cab.get("Content-Encoding"), "gzip")

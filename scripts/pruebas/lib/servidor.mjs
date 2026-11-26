@@ -50,6 +50,8 @@ const TIPOS = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".jpeg": "image/jpeg",
   ".ico": "image/vnd.microsoft.icon",
   ".woff2": "font/woff2",
 };
