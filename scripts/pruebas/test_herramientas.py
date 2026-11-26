@@ -381,7 +381,7 @@ class PruebasGiros(unittest.TestCase):
         self.assertIn("<p>hjgr.dev, 2026</p>", self.leer("vidrierias/index.html"), "el resto de la página sigue a la plantilla")
 
     def test_falta_una_marca_falla_con_mensaje_claro_y_no_escribe(self):
-        for marca in ["h1", "problemas", "problema", "etapas", "json-ld"]:
+        for marca in ["h1", "hero", "faq", "problemas", "problema", "etapas", "json-ld"]:
             with self.subTest(marca=marca):
                 original = self.leer("index.html")
                 self.assertIn(f'data-giro="{marca}"', original, f"la plantilla debe tener la marca {marca}")
@@ -401,6 +401,9 @@ class PruebasGiros(unittest.TestCase):
             (lambda d: d.update(titulo=""), "titulo"),
             (lambda d: d.update(problemas=d["problemas"][:2]), "problemas"),
             (lambda d: d.update(inventada="x"), "inventada"),
+            (lambda d: d.update(hero=""), "hero"),
+            (lambda d: d.update(preguntas=[{"pregunta": "¿Sí?"}]), "preguntas"),
+            (lambda d: d.update(preguntas="x"), "preguntas"),
         ]:
             malo = json.loads(json.dumps(datos))
             cambio(malo)
@@ -488,6 +491,36 @@ class PruebasGiros(unittest.TestCase):
             self.assertEqual(home.count(trozo), pagina.count(trozo), trozo)
         # La imagen para compartir es la misma.
         self.assertEqual(re.search(r'og:image" content="([^"]*)"', home).group(1), re.search(r'og:image" content="([^"]*)"', pagina).group(1))
+
+    def test_textos_propios_del_giro_solo_en_su_pagina(self):
+        # Texto del hero, párrafo antes de las etapas y preguntas propias ANTES de las generales; la home no cambia.
+        self.gen()
+        home = self.leer("index.html")
+        pagina = self.leer("vidrierias/index.html")
+        hero = "Hago sistemas para vidrierías y talleres de aluminio: cotización con medidas y cortes, órdenes al taller y agenda de instalaciones, en un solo lugar."
+        parrafo = "He programado sistemas para vidrierías que calculan el precio con medidas, tipo de vidrio y herrajes, mandan la orden al taller, siguen el templado y agendan la instalación. También planean los cortes de cada hoja para desperdiciar menos."
+        preguntas = [
+            ("¿Sirve si tengo varias sucursales?", "Sí. Cada sucursal cotiza con los mismos precios y el taller ve los pedidos de todas."),
+            ("¿Mis vendedores tienen que saber de computación?", "No. Se diseña con ellos, para que cotizar sea más rápido que hacerlo a mano."),
+            ("¿Puedo empezar solo con el cotizador?", "Sí. Muchos empiezan por ahí y después agregan taller e instalaciones."),
+        ]
+        self.assertIn(f"<p>{hero}</p>", pagina)
+        self.assertNotIn("Hago sistemas, automatizaciones y webs", pagina)
+        self.assertIn("Hago sistemas, automatizaciones y webs", home)
+        self.assertEqual(pagina.count(parrafo), 1)
+        self.assertLess(pagina.index(parrafo), pagina.index('id="sistemas"'))
+        self.assertGreater(pagina.index(parrafo), pagina.index("</section>", pagina.index('class="hero')))
+        posiciones = []
+        for q, r in preguntas:
+            trozo = f'<details class="faq__item">\n              <summary>{q}</summary>\n              <p>{r}</p>\n            </details>'
+            self.assertIn(trozo, pagina, q)
+            self.assertNotIn(q, home)
+            posiciones.append(pagina.index(trozo))
+        self.assertEqual(posiciones, sorted(posiciones))
+        self.assertLess(posiciones[-1], pagina.index("<summary>¿Emite factura?</summary>"), "las propias van antes de las generales")
+        self.assertEqual(pagina.count('class="faq__item"'), home.count('class="faq__item"') + 3)
+        self.assertNotIn("FAQPage", pagina)
+        self.assertNotIn(parrafo, home)
 
     def test_json_ld_de_la_pagina_de_giro_usa_su_url_y_descripcion(self):
         self.gen()

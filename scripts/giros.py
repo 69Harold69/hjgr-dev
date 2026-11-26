@@ -7,7 +7,8 @@ archivo de datos por giro, `scripts/giros/<giro>.json`, y escribe `<giro>/index.
 agregar su JSON (esquema en scripts/giros/LEEME.md) y correr este script.
 
 Qué cambia en la página de giro (todo lo demás es idéntico a la home):
-  - h1, y el texto (y, si el dato lo trae, el enlace) de cada una de las tres filas de problemas;
+  - h1; el texto bajo el titular (`hero`), un párrafo antes de las etapas (`antes_de_etapas`) y preguntas propias
+    antes de las generales (`preguntas`), los tres opcionales; y el texto (y, si el dato lo trae, el enlace) de cada una de las tres filas de problemas;
   - el orden: la sección de las seis etapas (#sistemas) va antes de los problemas;
   - <title>, meta description, canonical, og:url/title/description y twitter:title/description;
   - el JSON-LD: el nodo Service lleva la url y la descripción de esa página.
@@ -41,6 +42,8 @@ PREFIJO_COMENTARIO = "Generado por scripts/giros.py"
 RESERVADOS = {"assets", "scripts", "privado", "privacidad", "node_modules", "404", "sitemap", "robots", "favicon"}
 RE_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 CLAVES = {"h1", "titulo", "descripcion", "problemas"}
+CLAVES_OPCIONALES = {"hero", "antes_de_etapas", "preguntas"}
+CLAVES_PREGUNTA = {"pregunta", "respuesta"}
 CLAVES_PROBLEMA = {"texto", "enlace"}
 CLAVES_ENLACE = {"texto", "href"}
 FILAS = 3
@@ -112,11 +115,11 @@ def leer_datos(ruta, nombre):
         raise ErrorGiros(f"{donde}: no se pudo leer como JSON ({e})")
     if not isinstance(datos, dict):
         raise ErrorGiros(f"{donde}: debe ser un objeto JSON")
-    faltan, sobran = CLAVES - set(datos), set(datos) - CLAVES
+    faltan, sobran = CLAVES - set(datos), set(datos) - CLAVES - CLAVES_OPCIONALES
     if faltan:
         raise ErrorGiros(f"{donde}: faltan las claves {', '.join(sorted(faltan))}")
     if sobran:
-        raise ErrorGiros(f"{donde}: clave(s) desconocida(s) {', '.join(sorted(sobran))} (válidas: {', '.join(sorted(CLAVES))})")
+        raise ErrorGiros(f"{donde}: clave(s) desconocida(s) {', '.join(sorted(sobran))} (válidas: {', '.join(sorted(CLAVES | CLAVES_OPCIONALES))})")
     h1 = datos["h1"]
     frases = [h1] if isinstance(h1, str) else h1
     if not isinstance(frases, list) or not frases:
@@ -126,6 +129,18 @@ def leer_datos(ruta, nombre):
         "titulo": texto_no_vacio(datos["titulo"], f"{donde}: titulo"),
         "descripcion": texto_no_vacio(datos["descripcion"], f"{donde}: descripcion"),
     }
+    for clave in ("hero", "antes_de_etapas"):
+        if clave in datos:
+            out[clave] = texto_no_vacio(datos[clave], f"{donde}: {clave}")
+    if "preguntas" in datos:
+        preguntas = datos["preguntas"]
+        if not isinstance(preguntas, list) or not preguntas:
+            raise ErrorGiros(f"{donde}: preguntas debe ser una lista no vacía de objetos con «pregunta» y «respuesta»")
+        out["preguntas"] = []
+        for i, q in enumerate(preguntas, 1):
+            if not isinstance(q, dict) or set(q) != CLAVES_PREGUNTA:
+                raise ErrorGiros(f"{donde}: preguntas[{i}] debe ser un objeto con «pregunta» y «respuesta»")
+            out["preguntas"].append({k: texto_no_vacio(q[k], f"{donde}: preguntas[{i}].{k}") for k in sorted(CLAVES_PREGUNTA)})
     problemas = datos["problemas"]
     if not isinstance(problemas, list) or len(problemas) != FILAS:
         raise ErrorGiros(f"{donde}: problemas debe ser una lista de {FILAS} elementos")
@@ -200,6 +215,23 @@ def generar(plantilla, datos, giro):
     frases = " ".join(f'<span class="hero__frase">{esc(x)}</span>' for x in datos["h1"])
     html = html[:a] + frases + html[c:]
 
+    # Texto bajo el titular (opcional)
+    if "hero" in datos:
+        (i, a, c, f), = bloque(html, "hero", "el párrafo bajo el titular")
+        html = html[:a] + esc(datos["hero"]) + html[c:]
+    else:
+        bloque(html, "hero", "el párrafo bajo el titular")
+
+    # Preguntas propias del giro, ANTES de las generales (opcional); mismo marcado que las de la home
+    (i, a, c, f), = bloque(html, "faq", "la lista de preguntas frecuentes")
+    if "preguntas" in datos:
+        sangria = sangria_de(html, i)
+        items = "\n".join(
+            f'{sangria}<details class="faq__item">\n{sangria}  <summary>{esc(q["pregunta"])}</summary>\n{sangria}  <p>{esc(q["respuesta"])}</p>\n{sangria}</details>'
+            for q in datos["preguntas"]
+        )
+        html = html[:a] + "\n" + items + html[a:]
+
     # Problemas
     (pi, pa, pc, pf), = bloque(html, "problemas", "la sección de los tres problemas")
     seccion = html[pi:pf]
@@ -223,6 +255,16 @@ def generar(plantilla, datos, giro):
         etapas = html[ei:ef]
         html = html[: ei - len(hueco)] + html[ef:]
         html = html[:pi] + etapas + hueco + html[pi:]
+
+    # Párrafo propio inmediatamente antes de la sección de las seis etapas (opcional); estilo de texto existente
+    if "antes_de_etapas" in datos:
+        (ei, _, _, _), = bloque(html, "etapas", "la sección de las seis etapas (#sistemas)")
+        sangria = sangria_de(html, ei)
+        nuevo = (
+            f'<section class="seccion">\n{sangria}  <div class="contenedor">\n{sangria}    <p class="seccion__intro">{esc(datos["antes_de_etapas"])}</p>\n'
+            f"{sangria}  </div>\n{sangria}</section>\n\n{sangria}"
+        )
+        html = html[:ei] + nuevo + html[ei:]
 
     # JSON-LD
     (ji, ja, jc, jf), = bloque(html, "json-ld", "el JSON-LD")

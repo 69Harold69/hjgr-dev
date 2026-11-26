@@ -11,6 +11,9 @@ Para crear un giro nuevo (`fumigadoras`, `uniformes`, `distribuidoras`, `tallere
   "h1": ["Primera frase", "segunda frase."],
   "titulo": "Texto del <title> y de og:title / twitter:title",
   "descripcion": "Texto de la meta description, de og:description / twitter:description y de la descripción del JSON-LD.",
+  "hero": "Opcional: párrafo bajo el titular.",
+  "antes_de_etapas": "Opcional: párrafo inmediatamente antes de la sección de las seis etapas.",
+  "preguntas": [{ "pregunta": "¿Opcional?", "respuesta": "Preguntas propias del giro." }],
   "problemas": [
     { "texto": "Primer problema.", "enlace": { "texto": "Sistemas internos", "href": "#sistemas" } },
     { "texto": "Segundo problema." },
@@ -21,9 +24,12 @@ Para crear un giro nuevo (`fumigadoras`, `uniformes`, `distribuidoras`, `tallere
 
 | Clave | Obligatoria | Qué es |
 | --- | --- | --- |
-| `h1` | sí | Texto o lista de frases. Cada frase va en su propio `<span class="hero__frase">` (un bloque propio y, en la primera visita, un trazo de la animación de entrada). Todas juntas forman el único `h1` de la página |
+| `h1` | sí | Texto o lista de frases. Cada frase va en su propio `<span class="hero__frase">` (un bloque propio; el titular no se anima). Todas juntas forman el único `h1` de la página |
 | `titulo` | sí | `<title>`, `og:title` y `twitter:title` |
 | `descripcion` | sí | `meta description`, `og:description`, `twitter:description` y `description` del nodo `Service` del JSON-LD |
+| `hero` | no | Reemplaza el párrafo bajo el `<h1>`. Si falta, queda el de la home |
+| `antes_de_etapas` | no | Agrega, inmediatamente antes de la sección de las seis etapas, una `<section class="seccion">` con un `<p class="seccion__intro">` (estilo ya existente). Si falta, no se agrega nada |
+| `preguntas` | no | Lista de `{ "pregunta", "respuesta" }`. Se agregan ANTES de las preguntas generales, con el mismo marcado (`<details class="faq__item">`). No hay JSON-LD de preguntas en el sitio, así que no se toca |
 | `problemas` | sí | Exactamente 3 filas, en el orden en que se muestran |
 | `problemas[].texto` | sí | La frase de la fila |
 | `problemas[].enlace` | no | `{ "texto", "href" }`. Si falta, la fila conserva el enlace de la home (en la misma posición) |
@@ -32,7 +38,7 @@ Cualquier otra clave es un error (así un nombre mal escrito no pasa en silencio
 
 ## Qué cambia respecto de la home
 
-Cambian: `h1`, los textos de los tres problemas (y sus enlaces si el dato los trae), `<title>`, `meta description`, `canonical`, `og:url/title/description`, `twitter:title/description` y el nodo `Service` del JSON-LD (`@id`, `url`, `description`). Además, la sección de las seis etapas (`#sistemas`) va antes de los problemas. Todo lo demás (texto bajo el titular, botones, firma, precios, preguntas, cierre, pie, animaciones, imagen para compartir) es idéntico a `index.html`.
+Cambian: `h1`, los textos de los tres problemas (y sus enlaces si el dato los trae), `<title>`, `meta description`, `canonical`, `og:url/title/description`, `twitter:title/description` y el nodo `Service` del JSON-LD (`@id`, `url`, `description`). Además, la sección de las seis etapas (`#sistemas`) va antes de los problemas. Los tres textos opcionales de arriba, si el dato los trae. Todo lo demás (texto bajo el titular, botones, firma, precios, preguntas, cierre, pie, animaciones, imagen para compartir) es idéntico a `index.html`.
 
 La URL de la página es `<origen>/<giro>/` (con barra final, igual que el `canonical` y el `sitemap.xml`). El origen se toma del `canonical` de `index.html`, así que `dominio.py` lo mantiene al día.
 
@@ -43,6 +49,8 @@ La plantilla es `index.html`; los puntos sustituibles llevan `data-giro="..."`. 
 | Marca | Dónde | Para qué |
 | --- | --- | --- |
 | `data-giro="h1"` | el `<h1>` | se reemplaza su contenido por las frases de `h1` |
+| `data-giro="hero"` | el `<p>` bajo el `<h1>` | se reemplaza su contenido por `hero` (si el dato lo trae) |
+| `data-giro="faq"` | el `<div class="faq">` | `preguntas` se insertan al inicio |
 | `data-giro="problemas"` | la `<section>` de los tres problemas | delimita dónde están las filas; las etapas se colocan antes de ella |
 | `data-giro="problema"` | cada `<li>` de problema (3) | su `<p class="problemas__frase">` y su `<a>` se sustituyen |
 | `data-giro="etapas"` | la `<section id="sistemas">` | es la que sube antes de los problemas |

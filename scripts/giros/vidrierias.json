@@ -2,6 +2,13 @@
   "h1": ["Cotizaciones, cortes y entregas en un solo sistema."],
   "titulo": "Sistemas para vidrierías: cotización, cortes y entregas | Harold García",
   "descripcion": "Un solo sistema para cotizar igual, planear los cortes y saber en qué etapa va cada pedido. Para vidrierías que hoy se organizan con Excel, libretas y WhatsApp.",
+  "hero": "Hago sistemas para vidrierías y talleres de aluminio: cotización con medidas y cortes, órdenes al taller y agenda de instalaciones, en un solo lugar.",
+  "antes_de_etapas": "He programado sistemas para vidrierías que calculan el precio con medidas, tipo de vidrio y herrajes, mandan la orden al taller, siguen el templado y agendan la instalación. También planean los cortes de cada hoja para desperdiciar menos.",
+  "preguntas": [
+    { "pregunta": "¿Sirve si tengo varias sucursales?", "respuesta": "Sí. Cada sucursal cotiza con los mismos precios y el taller ve los pedidos de todas." },
+    { "pregunta": "¿Mis vendedores tienen que saber de computación?", "respuesta": "No. Se diseña con ellos, para que cotizar sea más rápido que hacerlo a mano." },
+    { "pregunta": "¿Puedo empezar solo con el cotizador?", "respuesta": "Sí. Muchos empiezan por ahí y después agregan taller e instalaciones." }
+  ],
   "problemas": [
     { "texto": "Cada vendedor cotiza distinto.", "enlace": { "texto": "Sistemas internos", "href": "#sistemas" } },
     { "texto": "Se tira vidrio y aluminio porque el corte se planea al ojo.", "enlace": { "texto": "Sistemas internos", "href": "#sistemas" } },
