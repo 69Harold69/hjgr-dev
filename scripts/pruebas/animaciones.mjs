@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /*
   animaciones: las dos animaciones de la home y de las páginas de giro (issues #7 y #8; comparten hero), contra el servidor de pruebas (con la CSP de producción).
-    1. Entrada del hero, «un equipo de cursores»: solo en la primera visita, 4 cursores y el botón «Saltar»,
+    1. Entrada del hero, «un equipo de cursores»: solo en la primera visita, 3 cursores (Procesos, Backend, Soporte: arman la hoja, los botones y la línea naranja) y el botón «Saltar»,
        termina sola en 4 s como máximo y deja todo visible y sin residuos.
     2. Línea de las seis etapas: se dibuja una vez al entrar la sección; sin JS o con movimiento reducido, completa.
   Comprueba, en 1280×800 y 390×844 (cada caso en un contexto nuevo, o sea primera visita):
-    - primera visita: 4 cursores aria-hidden con pointer-events:none, botón «Saltar» (<button>, 44 px o más),
+    - primera visita: el H1 y su párrafo visibles desde el primer pintado (opacidad 1, sin recorte, sin transform) mientras corren los cursores,
+      y el elemento LCP es el H1 (decisión del dueño: el mensaje se lee al instante); 3 cursores aria-hidden con pointer-events:none, botón «Saltar» (<button>, 44 px o más),
       los botones reales del hero no quedan tapados, y a los 4.5 s ya no queda nada de la animación (ni la clase en <html>)
       y el H1, la hoja, sus marcas y los dos botones están a opacidad 1, sin transformaciones ni recortes residuales;
       la clase duró 4 s como máximo;
@@ -68,7 +69,7 @@ const ESTADO_FINAL = () => {
     if (!pseudo && !el.matches(".marcas__esq") && (r.width <= 0 || r.height <= 0)) f.push(`${nombre}: sin caja`);
   };
   limpio("h1", document.querySelector("h1"));
-  document.querySelectorAll(".hero__frase").forEach((el, i) => limpio(`frase ${i + 1}`, el));
+  limpio("párrafo del hero", document.querySelector(".hero__texto > p:not(.hero__firma)"));
   limpio("hoja", document.querySelector(".hero .pedido"));
   document.querySelectorAll(".hero .pedido .marcas__esq").forEach((el, i) => limpio(`marca de corte ${i + 1}`, el));
   const botones = document.querySelectorAll(".hero__acciones .boton");
@@ -78,6 +79,22 @@ const ESTADO_FINAL = () => {
   if (document.querySelector(".entrada, .cursor, .entrada__saltar")) f.push("quedan elementos de la animación en el DOM");
   const clases = [...document.documentElement.classList].filter((c) => /^(js-entrada|entrada)/.test(c));
   if (clases.length) f.push(`quedan clases en <html>: ${clases.join(" ")}`);
+  return f;
+};
+
+/* El titular y su párrafo no se animan: siempre a opacidad 1, sin recorte ni transform, aunque corra la entrada. */
+const ESTADO_TEXTO = () => {
+  const f = [];
+  for (const [nombre, el] of [["h1", document.querySelector("h1")], ["párrafo del hero", document.querySelector(".hero__texto > p:not(.hero__firma)")], ...[...document.querySelectorAll(".hero__frase")].map((x, i) => [`frase ${i + 1}`, x])]) {
+    if (!el) { f.push(`falta ${nombre}`); continue; }
+    for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (Number(cs.opacity) !== 1) f.push(`${nombre}: opacidad ${cs.opacity}`);
+      if (cs.clipPath !== "none") f.push(`${nombre}: recorte ${cs.clipPath}`);
+      if (cs.transform !== "none") f.push(`${nombre}: transform ${cs.transform}`);
+      if (n.getAnimations().length) f.push(`${nombre}: tiene animaciones activas`);
+    }
+  }
   return f;
 };
 
@@ -142,6 +159,8 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
           falla(`primera visita ${en}`, "no aparecieron cursores");
         }
         await page.waitForTimeout(1500);
+        // A mitad de la entrada el titular y su párrafo ya estaban a la vista, estáticos.
+        for (const m of await page.evaluate(ESTADO_TEXTO)) falla(`primera visita ${en} a mitad de la entrada`, m);
         const dentro = await page.evaluate(() => {
           const cursores = [...document.querySelectorAll(".cursor")];
           const saltar = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Saltar");
@@ -166,8 +185,8 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
             scrollH: document.documentElement.scrollWidth > innerWidth,
           };
         });
-        if (dentro.n !== 4) falla(`primera visita ${en}`, `se esperaban 4 cursores y hay ${dentro.n}`);
-        if (dentro.n === 4 && ["Procesos", "Diseño", "Backend", "Soporte"].some((r) => !dentro.roles.includes(r))) falla(`primera visita ${en}`, `roles inesperados: ${dentro.roles.join(", ")}`);
+        if (dentro.n !== 3) falla(`primera visita ${en}`, `se esperaban 3 cursores y hay ${dentro.n}`);
+        if (dentro.n === 3 && ["Procesos", "Backend", "Soporte"].some((r) => !dentro.roles.includes(r))) falla(`primera visita ${en}`, `roles inesperados: ${dentro.roles.join(", ")}`);
         if (!dentro.ariaOculto) falla(`primera visita ${en}`, "los cursores no están en aria-hidden=true");
         if (!dentro.sinPuntero) falla(`primera visita ${en}`, "los cursores o su contenedor no tienen pointer-events:none");
         if (!dentro.saltar) falla(`primera visita ${en}`, "no hay botón «Saltar»");
@@ -189,6 +208,25 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         if (n2.cursores || n2.saltar || n2.clase !== null) falla(`segunda visita ${en}`, `no debe haber animación y hay ${JSON.stringify(n2)}`);
         await revisarFinal(p2, `segunda visita ${en}`);
         await cerrar(c, `consola ${en} (visitas)`);
+      }
+
+      /* 2b. El elemento LCP es el H1 (el titular se ve desde el primer pintado; la entrada no lo retrasa). */
+      {
+        const c = await abrir({ viewport: vp });
+        const page = await c.ctx.newPage();
+        await page.addInitScript(() => {
+          window.__lcp = [];
+          new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__lcp.push({ tag: e.element ? e.element.tagName : null, enH1: !!(e.element && e.element.closest("h1")), t: e.startTime }); }).observe({ type: "largest-contentful-paint", buffered: true });
+        });
+        await page.goto(servidor.url + ruta, { waitUntil: "load" });
+        await page.waitForTimeout(1200);
+        const lcp = await page.evaluate(() => window.__lcp);
+        const ultimo = lcp[lcp.length - 1];
+        if (!ultimo) falla(`LCP ${en}`, "el navegador no reportó ningún elemento LCP");
+        // El texto del H1 vive en <span class="hero__frase">: el navegador reporta ese span (descendiente del H1).
+        else if (!ultimo.enH1) falla(`LCP ${en}`, `el elemento LCP debe ser el H1 (o un hijo suyo) y es ${ultimo.tag}`);
+        else console.log(`  LCP ${en}: ${ultimo.tag} dentro del H1 a ${ultimo.t.toFixed(0)} ms`);
+        await cerrar(c, `consola LCP ${en}`);
       }
 
       /* 3. «Saltar», scroll y tecla terminan en menos de 300 ms. */
@@ -291,7 +329,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         const l = await page.evaluate(ESTADO_LINEA);
         const hoja = await page.evaluate(() => {
           const f = [];
-          for (const el of document.querySelectorAll(".hero__frase, .hero .pedido, .hero__acciones .boton")) {
+          for (const el of document.querySelectorAll(".hero .pedido, .hero__acciones .boton")) {
             const cs = getComputedStyle(el);
             if (Number(cs.opacity) < 1) f.push(`${el.className}: opacidad ${cs.opacity}`);
             if (cs.clipPath !== "none" && /100%/.test(cs.clipPath)) f.push(`${el.className}: recortado ${cs.clipPath}`);

@@ -50,5 +50,5 @@ Las dirige `assets/js/inicio.js` (clásico, en `<head>`; decide y pone `js-entra
 
 - Los estados «ocultos para animar» existen SOLO bajo `.js-entrada` (hero) y `.js-etapas` (línea de etapas), y solo con `prefers-reduced-motion: no-preference`. Sin JS, con movimiento reducido o si algo falla, todo se ve.
 - `.js-entrada` trae su propia salida a los 2.5 s (`@keyframes entrada-seguro`, con `forwards`) por si el JS que la quita no llegara a correr; `inicio.js` además la quita con un temporizador de 2.5 s (con `entrada-fin`, para que no haya transiciones). Cuando `main.js` toma el control pone `entrada-activa` en `<html>`: el CSS retira entonces su respaldo y `inicio.js` no corta nada (la entrada dura 3.9 s y la termina `main.js`).
-- Solo `transform` y `opacity`; el titular se «escribe» con un `clip-path` (único recorte). Las animaciones se crean con la Web Animations API, no con `style`, así que la CSP no se toca.
+- Solo `transform` y `opacity`; el titular y su párrafo no se animan (visibles desde el primer pintado, así el LCP es el H1). Las animaciones se crean con la Web Animations API, no con `style`, así que la CSP no se toca.
 - `.entrada` (contenedor de cursores, `aria-hidden`, `pointer-events: none`), `.cursor`, `.cursor__rol`, `.entrada__todos` y `.entrada__saltar` los crea el JS y los quita al terminar.

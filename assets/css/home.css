@@ -706,16 +706,12 @@
  * Regla de oro: lo «oculto para animar» solo existe bajo una clase que el JS pone en <html> (js-entrada, js-etapas),
  * nunca por defecto. Sin JS, con movimiento reducido o si algo falla, todo se ve. js-entrada además trae su
  * propia salida a los 2.5 s (animación entrada-seguro; la retira entrada-activa si main.js arranca), por si el JS que la quita no llegara a correr.
- * Solo transform y opacity (y un recorte en el titular). Capa: componentes.
+ * Solo transform y opacity. Capa: componentes.
  */
 @layer componentes {
   @media (prefers-reduced-motion: no-preference) {
 
     /* ---------- Entrada del hero ---------- */
-    .js-entrada .hero__frase {
-      clip-path: inset(-0.1em 100% -0.1em 0);
-      animation: entrada-seguro 1ms 2.5s forwards;
-    }
     .js-entrada .hero .pedido,
     .js-entrada .hero__acciones .boton {
       opacity: 0;
@@ -732,7 +728,6 @@
       animation: entrada-seguro 1ms 2.5s forwards;
     }
     /* Si main.js tomó el control (entrada-activa), el respaldo del CSS se retira: la entrada normal dura 3.9 s. */
-    .js-entrada.entrada-activa .hero__frase,
     .js-entrada.entrada-activa .hero .pedido,
     .js-entrada.entrada-activa .hero__acciones .boton,
     .js-entrada.entrada-activa .hero .pedido .marcas__esq,
@@ -784,7 +779,6 @@
       white-space: nowrap;
     }
     .cursor--procesos { --cursor: var(--ink); }
-    .cursor--diseno { --cursor: var(--ink-2); }
     .cursor--backend { --cursor: var(--muted); }
     .cursor--soporte { --cursor: var(--ink); }
     /* El naranja, solo como línea fina: el cursor que traza la línea de la hoja y el de los botones. */
@@ -845,21 +839,18 @@
     to {
       opacity: 1;
       transform: none;
-      clip-path: none;
     }
   }
 
   /* Al imprimir o guardar como PDF (antes de bajar a las etapas o a mitad de la entrada): todo armado y sin cursores.
      !important porque es lo único que gana a una animación en curso (Element.animate con fill). */
   @media print {
-    .hero__frase,
     .hero .pedido,
     .hero .pedido .marcas__esq,
     .hero__acciones .boton,
     .proceso__marca {
       opacity: 1 !important;
       transform: none !important;
-      clip-path: none !important;
     }
     .hero .etapas__item::after,
     .proceso__linea {

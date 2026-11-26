@@ -1,8 +1,8 @@
 /*
- * main.js: las dos únicas animaciones del sitio, sin librerías y solo con transform y opacity
- * (más un recorte, clip-path, para «escribir» el titular).
+ * main.js: las dos únicas animaciones del sitio, sin librerías y solo con transform y opacity.
  *   1. Entrada del hero, «un equipo de cursores»: solo primera visita y primera pantalla (lo decide inicio.js,
- *      que pone js-entrada en <html>). Dura 3.9 s; «Saltar», scroll, toque o tecla la terminan al instante.
+ *      que pone js-entrada en <html>). El titular y su párrafo NO participan: se ven desde el primer pintado (el LCP es el H1).
+ *      Los cursores arman solo la hoja, los botones y la línea naranja. Dura 3.9 s; «Saltar», scroll, toque o tecla la terminan al instante.
  *   2. Línea de las seis etapas: se dibuja una vez, cuando #sistemas entra en pantalla.
  * Los estados «ocultos para animar» viven en home.css bajo .js-entrada y .js-etapas. Si algo falla, se quitan
  * las clases y todo queda visible.
@@ -68,21 +68,19 @@ const SUBE = 12; // px: lo que el CSS desplaza hacia abajo la hoja y los botones
 const SUAVE = "cubic-bezier(0.2, 0, 0, 1)";
 const ROLES = [
   { clase: "procesos", texto: "Procesos" },
-  { clase: "diseno", texto: "Diseño" },
   { clase: "backend", texto: "Backend" },
   { clase: "soporte", texto: "Soporte" },
 ];
 
 function entrada() {
   const hero = document.querySelector(".hero");
-  const frases = hero ? [...hero.querySelectorAll(".hero__frase")] : [];
   const hoja = hero && hero.querySelector(".pedido");
   const botones = hero ? [...hero.querySelectorAll(".hero__acciones .boton")] : [];
   const esquinas = hoja ? [...hoja.querySelectorAll(".marcas__esq")] : [];
   const tramos = hoja ? [...hoja.querySelectorAll(".etapas__item:not(:last-child)")] : [];
   const inicio = Number(html.getAttribute("data-entrada"));
   const tarde = performance.now() - inicio > 800; // si el JS llegó muy tarde, no se anima
-  if (tarde || !frases.length || !hoja || botones.length < 2 || esquinas.length < 4 || !tramos.length) {
+  if (tarde || !hoja || botones.length < 2 || esquinas.length < 4 || !tramos.length) {
     return abandonar();
   }
   html.classList.add("entrada-activa"); // avisa a inicio.js y al CSS: su respaldo de 2.5 s ya no corre
@@ -175,34 +173,7 @@ function entrada() {
     const enPantalla = (y) => Math.min(Math.max(y, 72 + 24), alto - 56);
     const fuera = { izq: -90, der: ancho + 90, abajo: alto + 90, arriba: -90 };
 
-    const [procesos, diseno, backend, soporte] = cursores;
-
-    /* --- Diseño: escribe el titular, una frase tras otra --- */
-    const trazos = frases.map((f) => {
-      const caja = f.getBoundingClientRect();
-      const rango = document.createRange();
-      rango.selectNodeContents(f);
-      const t = rango.getBoundingClientRect();
-      return { f, caja, izq: t.left - caja.left, der: t.right - caja.left + 4, x0: t.left, x1: t.right, y: t.top + Math.min(t.height, 90) / 2 };
-    });
-    {
-      const llegada = chico ? 300 : 350;
-      const dur = chico ? 270 : 320;
-      const ruta = [[0, fuera.izq, trazos[0].y]];
-      let t = llegada;
-      ruta.push([t, trazos[0].x0 - 4, trazos[0].y, "linear"]);
-      trazos.forEach((z, i) => {
-        const dentro = (v) => `inset(-0.1em ${Math.max(0, z.caja.width - v)}px -0.1em 0)`;
-        anim(z.f, { clipPath: [dentro(z.izq), dentro(z.der)] }, { delay: t, duration: dur, easing: "linear" });
-        t += dur;
-        ruta.push([t, z.x1, z.y, "linear"]);
-        if (trazos[i + 1]) {
-          t += 60;
-          ruta.push([t, trazos[i + 1].x0 - 4, trazos[i + 1].y, "linear"]);
-        }
-      });
-      diseno.ruta = ruta;
-    }
+    const [procesos, backend, soporte] = cursores;
 
     /* --- Backend: dibuja la hoja y sus marcas de corte --- */
     {
@@ -267,7 +238,7 @@ function entrada() {
       const firma = rect(hero.querySelector(".hero__firma"));
       const cx = chico ? ancho / 2 : col.cx;
       const cy = Math.min(firma.b + 20 + pill.height / 2, alto - 100);
-      const orden = [procesos, diseno, backend, soporte];
+      const orden = [procesos, backend, soporte];
       const anchos = orden.map((c) => c.etiqueta.getBoundingClientRect().width);
       const hueco = 2;
       const suma = anchos.reduce((s, v) => s + v, 0) + hueco * 3;
