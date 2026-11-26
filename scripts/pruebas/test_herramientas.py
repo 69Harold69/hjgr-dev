@@ -76,6 +76,7 @@ CASOS = {
     "json-ld-precio-inventado": ("validar", {"json-ld"}),
     "json-ld-campo-prohibido": ("validar", {"json-ld"}),
     "json-ld-ausente": ("validar", {"json-ld"}),
+    "tuteo-atributo": ("validar", {"trato"}),
     "contraste-bajo": ("contraste", set()),
     "boton-chico": ("tactil", set()),
     "sin-outline": ("foco", set()),

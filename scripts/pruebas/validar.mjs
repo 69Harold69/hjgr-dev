@@ -24,8 +24,9 @@
     sitemap        toda página indexable en sitemap.xml con lastmod y viceversa; robots.txt apunta al sitemap
     imagenes       todo <img> con alt, width y height
     enlaces        enlaces internos a archivos (y anclas) existentes; ningún <a> sin href
-    trato          texto visible de USTED (patrones en TUTEO e IMPERATIVOS_INICIALES; excepción: data-trato-excepcion)
-    voz            sin «somos», «nuestro equipo», «nuestra agencia», «agencia»
+    trato          de USTED (patrones en TUTEO e IMPERATIVOS_INICIALES; excepción: data-trato-excepcion) en el texto visible y
+                   también en <title>, meta description/og/twitter, alt, title, aria-label, placeholder y cadenas del JSON-LD
+    voz            sin «somos», «nuestro equipo», «nuestra agencia», «agencia» (mismos textos que trato)
     precios        cifras con $ solo de la lista exacta; ninguna termina en 99 o 990 ni es redonda
     marcadores     avisa de 52XXXXXXXXXX / PENDIENTE (con --estricto, falla)
     giros          corre giros.py --check: cada <giro>/index.html es exactamente lo que generan index.html y scripts/giros/<giro>.json
@@ -43,6 +44,24 @@ import { CSP, archivoDe } from "./lib/servidor.mjs";
 
 /** Cifras con $ permitidas (únicas que pueden aparecer en el texto visible). */
 export const PRECIOS_PERMITIDOS = [9870, 1140, 24680, 1460, 38470, 12460, 3280, 27340, 3870, 14860, 1870, 48760, 2940];
+
+/*
+  La tabla de precios, fila por fila, como la aprobó Harold: [precio, al mes]. Una cifra de la lista puesta en la
+  fila equivocada (p. ej. $24,680 en «Web Express») pasaría la lista de arriba; esta tabla la detecta. La usan la
+  regla `precios` (toda tabla con encabezado de columna «Servicio») y `json-ld` (cada Offer con itemOffered.name).
+*/
+export const PRECIOS_POR_SERVICIO = {
+  "Web Express": ["$9,870", "$1,140"],
+  "Web Negocio": ["$24,680", "$1,460"],
+  "Web a la medida": ["desde $38,470", "desde $1,460"],
+  "Asistente de WhatsApp": ["$12,460", "$3,280"],
+  "Web y asistente": ["$27,340", "$3,870"],
+  "Automatización": ["desde $14,860", "soporte desde $1,870"],
+  "Sistema interno": ["desde $48,760", "soporte desde $2,940"],
+  "Diagnóstico de procesos": ["$3,870", "Se descuenta si seguimos"],
+};
+/* Cifra con separador de miles que no lleva $ delante: «9,870 pesos» es un precio mal escrito. */
+const RE_CIFRA_SIN_SIGNO = /(?<![$\d.,])(?<!\$\s)\d{1,3}(?:,\d{3})+(?![\d,])/g;
 
 /*
   Trato de USTED. Cada patrón se busca como palabra completa (sin distinguir mayúsculas) en el texto visible.
@@ -68,6 +87,11 @@ export const IMPERATIVOS_INICIALES = [
 ];
 export const VOZ_PROHIBIDA = ["somos", "nuestro equipo", "nuestra agencia", "agencia"];
 export const MARCADORES = ["52XXXXXXXXXX", "PENDIENTE"];
+/* Además del texto exacto: el hueco de la foto, que se escribe «Foto pendiente» (minúsculas) y lleva su clase. */
+export const MARCADORES_RE = [
+  [/foto pendiente/i, "«Foto pendiente»"],
+  [/class="[^"]*\bfoto__espacio\b/, "el hueco de la foto (.foto__espacio)"],
+];
 /* Datos que NO se publican en el JSON-LD: nada que no esté escrito en la página (ni reseñas, ni contacto, ni calle). */
 const CLAVES_PROHIBIDAS_LD = new Set([
   "aggregaterating", "review", "reviews", "ratingvalue", "ratingcount", "reviewcount", "bestrating", "worstrating",
@@ -115,6 +139,46 @@ function textosVisibles(arbol, { sinExcepcion = false } = {}) {
     for (const h of hijos(n)) ir(h);
   };
   ir(arbol);
+  return r;
+}
+
+/*
+  Textos que el visitante (o su lector de pantalla, o WhatsApp al compartir) también lee aunque no sean nodos de texto
+  del <body>: el <title>, los metadatos de descripción y de compartir, los atributos alt/title/aria-label/placeholder y
+  las cadenas del JSON-LD. Las reglas de trato y voz los revisan igual que el texto visible.
+*/
+const META_TEXTO = new Set(["description", "og:title", "og:description", "og:image:alt", "twitter:title", "twitter:description", "twitter:image:alt"]);
+const ATRIBUTOS_TEXTO = ["alt", "title", "aria-label", "aria-description", "placeholder"];
+const CLAVES_LD_NO_TEXTO = new Set(["@context", "@type", "@id", "url", "sameAs", "image", "logo", "item", "mainEntityOfPage", "priceCurrency", "inLanguage", "addressCountry"]);
+function textosNoVisibles(arbol, { sinExcepcion = false } = {}) {
+  const r = [];
+  const ir = (n, enExcepcion) => {
+    const exc = enExcepcion || (sinExcepcion && n.attrs && attr(n, "data-trato-excepcion") !== undefined);
+    if (n.tagName && !exc) {
+      if (n.tagName === "title") r.push({ texto: textoCompleto(n), linea: linea(n), origen: "<title>" });
+      if (n.tagName === "meta") {
+        const clave = attr(n, "name") ?? attr(n, "property");
+        if (META_TEXTO.has(clave) && attr(n, "content")) r.push({ texto: attr(n, "content").trim(), linea: linea(n), origen: `meta ${clave}` });
+      }
+      for (const a of ATRIBUTOS_TEXTO) if (attr(n, a)?.trim()) r.push({ texto: attr(n, a).trim(), linea: linea(n), origen: `${a}= de <${n.tagName}>` });
+      if (n.tagName === "script" && attr(n, "type") === "application/ld+json") {
+        let datos = null;
+        try {
+          datos = JSON.parse(textoDe(n));
+        } catch {
+          /* la regla json-ld ya lo reporta */
+        }
+        const cadenas = (v, k) => {
+          if (Array.isArray(v)) return v.forEach((x) => cadenas(x, k));
+          if (v && typeof v === "object") return Object.entries(v).forEach(([kk, x]) => cadenas(x, kk));
+          if (typeof v === "string" && !CLAVES_LD_NO_TEXTO.has(k) && !/^https?:\/\//i.test(v)) r.push({ texto: v.trim(), linea: linea(n), origen: `JSON-LD «${k}»` });
+        };
+        cadenas(datos, "");
+      }
+    }
+    for (const h of hijos(n)) ir(h, exc);
+  };
+  ir(arbol, false);
   return r;
 }
 
@@ -361,9 +425,9 @@ const reglas = {
   trato(ctx) {
     return {
       fallas: porPagina(ctx, (p) =>
-        textosVisibles(p.arbol, { sinExcepcion: true }).flatMap((t) => {
+        [...textosVisibles(p.arbol, { sinExcepcion: true }), ...textosNoVisibles(p.arbol, { sinExcepcion: true })].flatMap((t) => {
           const m = t.texto.match(RE_TUTEO) ?? t.texto.match(RE_IMPERATIVO);
-          return m ? [`${p.archivo}:${t.linea} trato de tú/vos («${m[0].trim()}») en «${t.texto.slice(0, 70)}»: use de usted`] : [];
+          return m ? [`${p.archivo}:${t.linea} trato de tú/vos («${m[0].trim()}») en ${t.origen ? `${t.origen} ` : ""}«${t.texto.slice(0, 70)}»: use de usted`] : [];
         }),
       ),
     };
@@ -372,9 +436,9 @@ const reglas = {
   voz(ctx) {
     return {
       fallas: porPagina(ctx, (p) =>
-        textosVisibles(p.arbol).flatMap((t) => {
+        [...textosVisibles(p.arbol), ...textosNoVisibles(p.arbol)].flatMap((t) => {
           const m = t.texto.match(RE_VOZ);
-          return m ? [`${p.archivo}:${t.linea} voz plural/agencia («${m[0]}») en «${t.texto.slice(0, 70)}»: Harold trabaja solo`] : [];
+          return m ? [`${p.archivo}:${t.linea} voz plural/agencia («${m[0]}») en ${t.origen ? `${t.origen} ` : ""}«${t.texto.slice(0, 70)}»: Harold trabaja solo`] : [];
         }),
       ),
     };
