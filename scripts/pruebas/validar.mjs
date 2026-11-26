@@ -27,7 +27,9 @@
     trato          de USTED (patrones en TUTEO e IMPERATIVOS_INICIALES; excepción: data-trato-excepcion) en el texto visible y
                    también en <title>, meta description/og/twitter, alt, title, aria-label, placeholder y cadenas del JSON-LD
     voz            sin «somos», «nuestro equipo», «nuestra agencia», «agencia» (mismos textos que trato)
-    precios        cifras con $ solo de la lista exacta; ninguna termina en 99 o 990 ni es redonda
+    precios        cifras con $ solo de la lista exacta; ninguna termina en 99 o 990 ni es redonda; ninguna cifra con
+                   separador de miles sin $; en toda tabla con columna «Servicio», cada fila es un servicio de
+                   PRECIOS_POR_SERVICIO y lleva exactamente SUS cifras (y el JSON-LD, en la regla json-ld, también)
     marcadores     avisa de 52XXXXXXXXXX / PENDIENTE (con --estricto, falla)
     giros          corre giros.py --check: cada <giro>/index.html es exactamente lo que generan index.html y scripts/giros/<giro>.json
     dominio, versionado, contacto   corren dominio.py, versionar.py y contacto.py con --check
@@ -340,6 +342,18 @@ const reglas = {
                 if (!Number.isFinite(n) || !PRECIOS_PERMITIDOS.includes(n)) f.push(`${donde(p, s)} JSON-LD «${k}» = ${JSON.stringify(x)} no está en la lista de precios permitidos`);
               }
               if (k === "priceCurrency" && x !== "MXN") f.push(`${donde(p, s)} JSON-LD priceCurrency «${x}» debe ser MXN`);
+              if (k === "itemOffered" && x && typeof x === "object" && typeof x.name === "string") {
+                // La oferta de un servicio de la tabla: su precio de arranque debe ser el de SU fila (y «desde» = minPrice).
+                const fila = PRECIOS_POR_SERVICIO[x.name];
+                const ps = [].concat(v.priceSpecification ?? [], v.price !== undefined ? [{ price: v.price }] : [])[0] ?? {};
+                if (!fila) f.push(`${donde(p, s)} JSON-LD: oferta «${x.name}» no es un servicio de la tabla de precios`);
+                else {
+                  const esperado = Number(fila[0].replace(/[^\d]/g, ""));
+                  const desde = /^desde\b/.test(fila[0]);
+                  const dado = ps[desde ? "minPrice" : "price"];
+                  if (Number(dado) !== esperado) f.push(`${donde(p, s)} JSON-LD: «${x.name}» debe llevar ${desde ? "minPrice" : "price"} ${esperado} (la tabla dice «${fila[0]}») y lleva ${JSON.stringify(ps)}`);
+                }
+              }
               ir(x, k);
             }
           } else if (typeof v === "string" && CLAVES_URL_LD.has(clave) && /^https?:\/\//i.test(v)) {
@@ -458,6 +472,24 @@ const reglas = {
             if (valor % 1000 === 0) f.push(`${en} es una cifra redonda`);
             return f;
           }),
+        ).concat(
+          // Cifras con separador de miles sin $ («9,870 pesos»): un precio mal escrito que la lista no ve.
+          textosVisibles(p.arbol).flatMap((t) => [...t.texto.matchAll(RE_CIFRA_SIN_SIGNO)].map((m) => `${p.archivo}:${t.linea} «${m[0]}» parece un precio sin $ en «${t.texto.slice(0, 70)}»`)),
+          // Tabla de precios (encabezado de columna «Servicio»): cada fila es un servicio conocido y lleva SUS cifras.
+          elementos(p.arbol, "table")
+            .filter((tabla) => elementos(tabla, "th").some((th) => attr(th, "scope") !== "row" && textoCompleto(th) === "Servicio"))
+            .flatMap((tabla) =>
+              elementos(tabla, "tr")
+                .filter((tr) => hijos(tr).some((c) => c.tagName === "td"))
+                .flatMap((tr) => {
+                  const celdas = hijos(tr).filter((c) => c.tagName === "th" || c.tagName === "td");
+                  const servicio = textoCompleto(celdas[0] ?? { childNodes: [] });
+                  const fila = PRECIOS_POR_SERVICIO[servicio];
+                  if (!fila) return [`${donde(p, tr)} la tabla de precios tiene «${servicio}», que no es un servicio de la lista (PRECIOS_POR_SERVICIO)`];
+                  const dados = celdas.slice(1).map((c) => textoCompleto(c));
+                  return fila.flatMap((esperado, i) => (dados[i] === esperado ? [] : [`${donde(p, tr)} «${servicio}»: la columna ${i + 1} debe decir «${esperado}» y dice «${dados[i] ?? ""}»`]));
+                }),
+            ),
         ),
       ),
     };
