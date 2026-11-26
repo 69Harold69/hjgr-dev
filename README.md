@@ -57,7 +57,7 @@ Cada prueba descubre sola las páginas (todos los `.html`, sin `scripts/`, `node
 | `node foco.mjs` | Tabulando, cada elemento enfocable muestra un indicador de foco visible |
 | `node accesibilidad.mjs` | En 1280 y 390 px, con el árbol de accesibilidad de Chromium: títulos sin saltos, un `<main>`, nombre accesible = texto visible en `a`, `button` y `summary`, ningún foco tapado por la barra fija y «Saltar al contenido» que lleva al `<main>` |
 | `node contraste.mjs` | Contraste de todo el texto visible con píxeles reales, tema claro: 4.5:1, o 3:1 para texto grande |
-| `node animaciones.mjs` | Entrada del hero y línea de las seis etapas, en la home y en las páginas de giro (comparten hero): primera visita (el H1 y su párrafo siempre visibles y el LCP es el H1), «Saltar», movimiento reducido, sin JS y fallas simuladas |
+| `node animaciones.mjs` | Entrada del hero y línea de las seis etapas, en la home y en las páginas de giro (comparten hero): cada carga (el H1 y su párrafo siempre visibles y el LCP es el H1), «Saltar», movimiento reducido, sin JS y fallas simuladas |
 | `node cls.mjs [--max 0]` | Layout Instability con red limitada en 360, 390 y 412 px |
 | `node lighthouse.mjs [--corridas 3]` | Móvil y escritorio, las cuatro categorías, mediana de N corridas; falla por debajo de 95 |
 | `node capturas.mjs` | Capturas de página completa en 1440, 768, 390 y 320 px en `scripts/pruebas/salida/` (ignorada por git) |
@@ -90,7 +90,7 @@ El orden importa porque `giros.py` arma cada página con lo que la plantilla tie
 
 Un giro nuevo (`fumigadoras`, `uniformes`, `distribuidoras`, `talleres`) es un archivo `scripts/giros/<giro>.json` más su `<loc>` en `sitemap.xml`; después, los cuatro comandos de arriba.
 
-**Primera visita.** La clave de `localStorage` de la animación de entrada (`hjgr-entrada`) es una sola para todo el sitio: quien ya vio la entrada en la home no la vuelve a ver en `/vidrierias/`, y al revés.
+**Entrada del hero.** La animación sale en cada carga de la home y de las páginas de giro (arriba del todo, sin movimiento reducido); no se guarda nada en el navegador (ni `localStorage` ni cookies).
 
 Si cambia la CSP, cámbiela en este README y en `scripts/pruebas/lib/servidor.mjs`: la regla `csp-readme` exige que sean idénticas.
 

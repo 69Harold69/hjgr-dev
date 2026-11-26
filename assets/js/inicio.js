@@ -1,5 +1,5 @@
 /*
- * inicio.js: decide, antes del primer pintado, si corre la entrada del hero.
+ * inicio.js: decide, antes del primer pintado, si corre la entrada del hero (en CADA carga; no guarda nada: sin localStorage ni memoria de visitas).
  * Script clásico y mínimo en <head>. Si corre, pone la clase js-entrada en <html>; el CSS oculta SOLO lo que
  * la animación va a revelar. Respaldo: si a los 2.5 s main.js no tomó el control (no puso entrada-activa), se
  * quita la clase y los restos, con el estado final aplicado al instante (sin transiciones). Si main.js sí arrancó,
@@ -10,14 +10,6 @@
   var html = document.documentElement;
   try {
     if (location.hash || window.scrollY > 0 || matchMedia("(prefers-reduced-motion: reduce)").matches || !html.animate) return;
-    var visto = false;
-    try {
-      visto = localStorage.getItem("hjgr-entrada") === "1";
-      localStorage.setItem("hjgr-entrada", "1");
-    } catch (e) {
-      /* Sin localStorage se comporta como primera visita. */
-    }
-    if (visto) return;
     html.classList.add("js-entrada");
     html.setAttribute("data-entrada", String(Math.round(performance.now())));
     setTimeout(function () {

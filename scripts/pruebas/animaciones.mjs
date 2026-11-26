@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /*
   animaciones: las dos animaciones de la home y de las páginas de giro (issues #7 y #8; comparten hero), contra el servidor de pruebas (con la CSP de producción).
-    1. Entrada del hero, «un equipo de cursores»: solo en la primera visita, 3 cursores (Procesos, Backend, Soporte: arman la hoja, los botones y la línea naranja) y el botón «Saltar»,
+    1. Entrada del hero, «un equipo de cursores»: en cada carga (sin memoria de visitas), 3 cursores (Procesos, Backend, Soporte: arman la hoja, los botones y la línea naranja) y el botón «Saltar»,
        termina sola en 4 s como máximo y deja todo visible y sin residuos.
     2. Línea de las seis etapas: se dibuja una vez al entrar la sección; sin JS o con movimiento reducido, completa.
-  Comprueba, en 1280×800 y 390×844 (cada caso en un contexto nuevo, o sea primera visita):
+  Comprueba, en 1280×800 y 390×844 (cada caso en un contexto nuevo):
     - primera visita: el H1 y su párrafo visibles desde el primer pintado (opacidad 1, sin recorte, sin transform) mientras corren los cursores,
       y el elemento LCP es el H1 (decisión del dueño: el mensaje se lee al instante); 3 cursores aria-hidden con pointer-events:none, botón «Saltar» (<button>, 44 px o más),
       los botones reales del hero no quedan tapados, y a los 4.5 s ya no queda nada de la animación (ni la clase en <html>)
       y el H1, la hoja, sus marcas y los dos botones están a opacidad 1, sin transformaciones ni recortes residuales;
       la clase duró 4 s como máximo;
-    - segunda visita (mismo contexto): ningún cursor ni clase;
+    - segunda carga (mismo contexto): la entrada vuelve a salir (no se guarda nada en el navegador: localStorage vacío);
     - «Saltar», scroll (rueda) y tecla terminan la animación en menos de 300 ms;
     - movimiento reducido: ningún cursor y la línea de etapas completa;
     - sin JavaScript: todo visible y sin cursores;
@@ -21,8 +21,7 @@
       que no carga), a los 5.5 s todo es visible;
     - cero mensajes de error o de CSP en la consola (salvo los que provocan a propósito los casos de falla simulada).
   Prueba la home («/») y toda página con el mismo hero (las páginas de giro, p. ej. /vidrierias/); cada una con su
-  propio contexto limpio, o sea primera visita. La clave de localStorage es una sola para todo el sitio: quien ya vio
-  la entrada en una página no la vuelve a ver en otra. Si el sitio no tiene hero (p. ej. fixtures/bueno), no hay nada que probar.
+  propio contexto limpio. Si el sitio no tiene hero (p. ej. fixtures/bueno), no hay nada que probar.
   Uso: node animaciones.mjs [--raiz DIR]
 */
 import { conPaginas, leerArgs, salir } from "./lib/comun.mjs";
@@ -200,14 +199,19 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         else if (t.quitada === null) falla(`primera visita ${en}`, "la clase js-entrada nunca se quitó");
         else if (t.quitada - t.puesta > 4050) falla(`primera visita ${en}`, `la animación duró ${(t.quitada - t.puesta).toFixed(0)} ms (máximo 4000)`);
         else console.log(`  primera visita ${en}: duró ${(t.quitada - t.puesta).toFixed(0)} ms`);
-        // Segunda visita: mismo contexto (mismo localStorage).
+        // Segunda carga: mismo contexto. La entrada vuelve a salir y no se guardó nada en localStorage.
         const p2 = await c.ctx.newPage();
-        await p2.goto(servidor.url + ruta, { waitUntil: "load" });
-        await p2.waitForTimeout(1200);
-        const n2 = await p2.evaluate(() => ({ cursores: document.querySelectorAll(".cursor").length, saltar: !!document.querySelector(".entrada__saltar"), clase: window.__entrada.puesta }));
-        if (n2.cursores || n2.saltar || n2.clase !== null) falla(`segunda visita ${en}`, `no debe haber animación y hay ${JSON.stringify(n2)}`);
-        await revisarFinal(p2, `segunda visita ${en}`);
-        await cerrar(c, `consola ${en} (visitas)`);
+        await p2.goto(servidor.url + ruta, { waitUntil: "domcontentloaded" });
+        try {
+          await p2.waitForSelector(".entrada .cursor", { timeout: 2000 });
+        } catch {
+          falla(`segunda carga ${en}`, "la entrada no volvió a salir");
+        }
+        const guardado = await p2.evaluate(() => localStorage.length + sessionStorage.length + document.cookie.length);
+        if (guardado) falla(`segunda carga ${en}`, "el sitio guardó algo en el navegador (localStorage, sessionStorage o cookies)");
+        await sinAnimacion(p2);
+        await revisarFinal(p2, `segunda carga ${en}`);
+        await cerrar(c, `consola ${en} (cargas)`);
       }
 
       /* 2b. El elemento LCP es el H1 (el titular se ve desde el primer pintado; la entrada no lo retrasa). */
@@ -240,7 +244,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
           const t = Date.now();
           if (via === "Saltar") await page.getByRole("button", { name: "Saltar" }).click();
           else if (via === "scroll") {
-            await page.mouse.move(vp.width / 2, vp.height / 2);
+            await page.mouse.move(1, vp.height / 2); // margen lateral: sin nada debajo (un hover dejaría un translateY(-1px) legítimo en un botón)
             await page.mouse.wheel(0, 120);
           } else await page.keyboard.press("x");
           await sinAnimacion(page);

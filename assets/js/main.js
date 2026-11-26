@@ -1,6 +1,6 @@
 /*
  * main.js: las dos únicas animaciones del sitio, sin librerías y solo con transform y opacity.
- *   1. Entrada del hero, «un equipo de cursores»: solo primera visita y primera pantalla (lo decide inicio.js,
+ *   1. Entrada del hero, «un equipo de cursores»: en cada carga, en la primera pantalla (lo decide inicio.js,
  *      que pone js-entrada en <html>). El titular y su párrafo NO participan: se ven desde el primer pintado (el LCP es el H1).
  *      Los cursores arman solo la hoja, los botones y la línea naranja. Dura 3.9 s; «Saltar», scroll, toque o tecla la terminan al instante.
  *   2. Línea de las seis etapas: se dibuja una vez, cuando #sistemas entra en pantalla.
