@@ -50,7 +50,7 @@ Cada prueba descubre sola las páginas (todos los `.html`, sin `scripts/`, `node
 
 | Comando | Qué comprueba |
 | --- | --- |
-| `node validar.mjs [--solo regla,...] [--estricto]` | Reglas estáticas: `html-validate`, `csp-estatica`, `csp-readme`, `formularios`, `meta`, `json-ld` (toda página indexable lleva JSON-LD válido, con precios solo de la lista y sin reseñas, teléfono, correo, horario ni calle), `sitemap`, `imagenes`, `enlaces`, `trato` (de usted), `voz`, `precios`, `marcadores`, `giros`, `dominio`, `versionado`, `contacto`. `--lista` las enumera |
+| `node validar.mjs [--solo regla,...] [--estricto]` | Reglas estáticas: `html-validate`, `csp-estatica`, `csp-readme`, `formularios`, `meta`, `json-ld` (toda página indexable lleva JSON-LD válido, con precios solo de la lista y sin reseñas, teléfono, correo, horario ni calle), `sitemap`, `imagenes`, `enlaces`, `trato` (de usted, también en `<title>`, metadatos, `alt`, `aria-label` y JSON-LD), `voz`, `precios` (además, cada fila de la tabla con sus cifras exactas y ninguna cifra sin `$`), `marcadores` (también «Foto pendiente»), `giros`, `dominio`, `versionado`, `contacto`. `--lista` las enumera |
 | `node sin-js.mjs` | Con JavaScript apagado, en 1440, 768, 390 y 320 px: `<h1>` y enlaces de contacto visibles, sin scroll horizontal ni texto con opacidad 0 |
 | `node tactil.mjs` | En 390 px, todo `a`, `button` y `summary` mide al menos 44×44 px (excepción: atributo `data-tactil-excepcion`) |
 | `node foco.mjs` | Tabulando, cada elemento enfocable muestra un indicador de foco visible |
@@ -68,7 +68,7 @@ Herramientas que escriben en los `.html` (todas aceptan `--check`, que no escrib
 - `python3 scripts/giros.py`: genera cada página de giro (`<giro>/index.html`) desde `index.html` (plantilla, con marcas `data-giro`) y `scripts/giros/<giro>.json`. Esquema en `scripts/giros/LEEME.md`. Si a la plantilla le falta una marca, falla con un mensaje claro y no escribe nada.
 - `python3 scripts/versionar.py`: sella `?v=<hash>` en los CSS y JS propios. Córralo cada vez que cambie algo de `assets/css` o `assets/js`.
 - `python3 scripts/dominio.py [--origen https://x.y]`: reescribe canonical, `og:url`, `og:image`, Twitter, JSON-LD, `sitemap.xml` y `robots.txt` según `origen` de `scripts/sitio.json`. Los hosts externos permitidos viven en `scripts/hosts-externos.json`.
-- `python3 scripts/contacto.py [--exigir-reales]`: escribe el `href` de los `<a data-contacto="whatsapp">` y `<a data-contacto="cal">` a partir de `scripts/sitio.json`. Mientras `whatsapp`, `cal` o `foto` sean marcadores (`52XXXXXXXXXX`, `PENDIENTE`) avisa; `--exigir-reales` falla si queda alguno.
+- `python3 scripts/contacto.py [--exigir-reales]`: escribe el `href` de los `<a data-contacto="whatsapp">` y `<a data-contacto="cal">` a partir de `scripts/sitio.json`. Mientras `whatsapp`, `cal` o `foto` sean marcadores (`52XXXXXXXXXX`, `PENDIENTE`) avisa; `--exigir-reales` falla si queda alguno en `sitio.json` o en cualquier `.html` (también el hueco «Foto pendiente», que se quita a mano de `index.html`).
 
 ### Cómo cambiar un texto
 

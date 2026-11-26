@@ -52,4 +52,4 @@ El `<head>` se encuentra por nombres estándar, sin marcas: `<title>`, `meta nam
 
 ## Cómo se mantiene al día
 
-`giros.py --check` (también la regla `giros` de `validar.mjs`) compara cada `<giro>/index.html` con lo que generarían hoy `index.html` y su JSON. Falla si alguien editó la página a mano o si cambió la plantilla sin regenerar. Orden de las herramientas al cambiar un texto: `giros.py`, `contacto.py`, `dominio.py`, `versionar.py` (ver README).
+`giros.py --check` (también la regla `giros` de `validar.mjs`) compara cada `<giro>/index.html` con lo que generarían hoy `index.html` y su JSON. Falla si alguien editó la página a mano, si cambió la plantilla sin regenerar o si queda una página generada cuyo JSON ya no existe (bórrela junto con su `<loc>` del sitemap). Orden de las herramientas al cambiar un texto: `giros.py`, `contacto.py`, `dominio.py`, `versionar.py` (ver README).
