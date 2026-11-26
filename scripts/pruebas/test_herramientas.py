@@ -237,13 +237,13 @@ class PruebasContacto(SitioTemporal):
         self.assertEqual(py("contacto.py", "--check", "--raiz", str(self.raiz)).returncode, 0)
 
     def test_idempotente_y_orden_de_atributos(self):
-        self.escribir("index.html", self.leer("index.html").replace('<a class="boton" data-contacto="cal" href="https://cal.com/ejemplo">', '<a data-contacto="cal" class="boton" href="viejo">'))
+        self.escribir("index.html", self.leer("index.html").replace('<a class="boton" data-contacto="cal" href="https://cal.com/ejemplo" target="_blank" rel="noopener">', '<a data-contacto="cal" class="boton" href="viejo">'))
         self.assertEqual(py("contacto.py", "--raiz", str(self.raiz)).returncode, 0)
         antes = instantanea(self.raiz)
         r = py("contacto.py", "--raiz", str(self.raiz))
         self.assertIn("0 archivo(s)", r.stdout)
         self.assertEqual(antes, instantanea(self.raiz))
-        self.assertIn('<a data-contacto="cal" class="boton" href="https://cal.com/ejemplo">', self.leer("index.html"))
+        self.assertIn('<a data-contacto="cal" class="boton" href="https://cal.com/ejemplo" target="_blank" rel="noopener">', self.leer("index.html"))
 
     def test_marcadores_avisan_y_exigir_reales_falla(self):
         sitio = json.loads(self.leer("scripts/sitio.json"))
@@ -274,6 +274,61 @@ class PruebasContacto(SitioTemporal):
         r = py("contacto.py", "--exigir-reales", "--raiz", str(self.raiz))
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("privacidad/index.html", r.stdout)
+
+    def test_cal_abre_en_pestana_nueva(self):
+        self.escribir("index.html", self.leer("index.html").replace('<a class="boton" data-contacto="cal" href="https://cal.com/ejemplo" target="_blank" rel="noopener">', '<a class="boton" data-contacto="cal" href="viejo">'))
+        self.assertEqual(py("contacto.py", "--check", "--raiz", str(self.raiz)).returncode, 1)
+        self.assertEqual(py("contacto.py", "--raiz", str(self.raiz)).returncode, 0)
+        self.assertIn('<a class="boton" data-contacto="cal" href="https://cal.com/ejemplo" target="_blank" rel="noopener">', self.leer("index.html"))
+        # idempotente: no duplica atributos
+        r = py("contacto.py", "--raiz", str(self.raiz))
+        self.assertIn("0 archivo(s)", r.stdout)
+        self.assertEqual(self.leer("index.html").count("target="), 1)
+
+    def test_correo_sale_de_sitio_json(self):
+        sitio = json.loads(self.leer("scripts/sitio.json"))
+        sitio["correo"] = "hola@ejemplo.test"
+        self.escribir("scripts/sitio.json", json.dumps(sitio))
+        self.escribir("index.html", self.leer("index.html").replace("</main>", '<p><a data-contacto="correo">hola@ejemplo.test</a></p></main>'))
+        self.assertEqual(py("contacto.py", "--raiz", str(self.raiz)).returncode, 0)
+        self.assertIn('<a href="mailto:hola@ejemplo.test" data-contacto="correo">', self.leer("index.html"))
+
+    def pagina_con_vigencia(self, valor):
+        sitio = json.loads(self.leer("scripts/sitio.json"))
+        sitio["aviso_vigente"] = valor
+        self.escribir("scripts/sitio.json", json.dumps(sitio))
+        p = self.raiz / "privacidad" / "index.html"
+        p.write_text(p.read_text(encoding="utf-8").replace("</main>", '<p>Vigente desde: <time data-aviso-vigente>PENDIENTE</time></p></main>'), encoding="utf-8")
+
+    def test_aviso_vigente_se_escribe_como_fecha_legible(self):
+        self.pagina_con_vigencia("2026-11-26")
+        self.assertEqual(py("contacto.py", "--check", "--raiz", str(self.raiz)).returncode, 1)
+        r = py("contacto.py", "--raiz", str(self.raiz))
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn('<time data-aviso-vigente datetime="2026-11-26">26 de noviembre de 2026</time>', self.leer("privacidad/index.html"))
+        self.assertEqual(py("contacto.py", "--check", "--exigir-reales", "--raiz", str(self.raiz)).returncode, 0)
+        sitio = json.loads(self.leer("scripts/sitio.json"))
+        sitio["aviso_vigente"] = "2027-03-01"
+        self.escribir("scripts/sitio.json", json.dumps(sitio))
+        self.assertEqual(py("contacto.py", "--raiz", str(self.raiz)).returncode, 0)
+        self.assertIn('datetime="2027-03-01">1 de marzo de 2027</time>', self.leer("privacidad/index.html"))
+
+    def test_aviso_vigente_pendiente_falla_con_exigir_reales(self):
+        self.pagina_con_vigencia("PENDIENTE")
+        r = py("contacto.py", "--raiz", str(self.raiz))
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("aviso_vigente", r.stdout)
+        self.assertIn("<time data-aviso-vigente>PENDIENTE</time>", self.leer("privacidad/index.html"))
+        r = py("contacto.py", "--exigir-reales", "--raiz", str(self.raiz))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("aviso_vigente", r.stdout)
+
+    def test_aviso_vigente_invalido_falla(self):
+        for malo in ("26/11/2026", "2026-13-40", "2026-02-30"):
+            self.pagina_con_vigencia(malo)
+            r = py("contacto.py", "--raiz", str(self.raiz))
+            self.assertEqual(r.returncode, 1, malo)
+            self.assertIn("aviso_vigente", r.stdout)
 
     def test_tipo_desconocido_falla(self):
         self.escribir("index.html", self.leer("index.html").replace('data-contacto="cal"', 'data-contacto="fax"'))
