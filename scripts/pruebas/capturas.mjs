@@ -15,7 +15,7 @@ const ANCHOS = [1440, 768, 390, 320];
 await conPaginas("capturas", a, async ({ paginas, servidor, navegador, falla }) => {
   fs.mkdirSync(salida, { recursive: true });
   for (const ancho of ANCHOS) {
-    const ctx = await navegador.newContext({ viewport: { width: ancho, height: 900 } });
+    const ctx = await navegador.newContext({ viewport: { width: ancho, height: 900 }, reducedMotion: "reduce" }); // página ya armada, sin la entrada del hero
     const page = await ctx.newPage();
     for (const p of paginas) {
       try {
