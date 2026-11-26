@@ -1,0 +1,58 @@
+/*
+ * fuentes.css: @font-face autoalojados (subconjunto latino, cubre español).
+ * Archivos y licencias: ../fuentes/LEEME.md
+ * font-display: swap + fuentes de respaldo con métricas ajustadas (CLS 0).
+ */
+
+/* Hedvig Letters Serif 400: solo títulos, precios y el nombre. */
+@font-face {
+  font-family: "Hedvig Letters Serif";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fuentes/hedvig-letters-serif-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Geist variable (eje de peso); se declaran solo 400 y 500. */
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url("../fuentes/geist-latin-wght-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/*
+ * Respaldos ajustados. Se parte de Arial / Times New Roman (o sus equivalentes
+ * métricos Liberation, Arimo y Tinos). Cifras calculadas con el ancho promedio de
+ * un texto en español y las métricas verticales (hhea) de cada fuente:
+ *   size-adjust   = ancho medio de la fuente real / ancho medio del respaldo
+ *   ascent        = ascent real / size-adjust
+ *   descent       = descent real / size-adjust
+ */
+@font-face {
+  font-family: "Geist Ajuste";
+  font-style: normal;
+  font-weight: 400 500;
+  src: local("Arial"), local("Liberation Sans"), local("Arimo"), local("Helvetica");
+  size-adjust: 103.44%;
+  ascent-override: 97.15%;
+  descent-override: 28.52%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Hedvig Letters Serif Ajuste";
+  font-style: normal;
+  font-weight: 400;
+  src: local("Times New Roman"), local("Liberation Serif"), local("Tinos"), local("Times");
+  size-adjust: 112.1%;
+  ascent-override: 90.99%;
+  descent-override: 28.55%;
+  line-gap-override: 0%;
+}
+
+/* Nota: el size-adjust de Hedvig se afinó midiendo un titular real en español en
+   Chromium (el cálculo por promedio daba 114.03% y quedaba 1.7% más ancho). */

@@ -14,7 +14,9 @@ Uso:
   python3 scripts/contacto.py                    escribe los href
   python3 scripts/contacto.py --check            no escribe; sale con 1 si algún href no coincide
   python3 scripts/contacto.py --exigir-reales    además falla (1) si sitio.json aún tiene marcadores
-                                                 (52XXXXXXXXXX, PENDIENTE); úselo antes de publicar
+                                                 (52XXXXXXXXXX, PENDIENTE) o si algún .html los conserva,
+                                                 o conserva el hueco de la foto («Foto pendiente»,
+                                                 .foto__espacio); úselo antes de publicar
   python3 scripts/contacto.py --raiz DIR         trabaja sobre otra copia del sitio (pruebas)
 
 Mientras haya marcadores el script funciona igual, pero imprime un AVISO. Idempotente.
@@ -35,6 +37,14 @@ SITIO = pathlib.Path("scripts") / "sitio.json"
 EXCLUIDOS = {".git", "node_modules", "scripts", ".worktrees"}
 MENSAJE = "Hola Harold, vi su página y me interesa"
 MARCADORES = ("52XXXXXXXXXX", "PENDIENTE")
+# En los .html, además de los marcadores de sitio.json: el hueco de la foto, que no sale de sitio.json (la clave
+# `foto` es solo un recordatorio) y se reemplaza a mano en index.html. --exigir-reales lo busca en las páginas.
+MARCADORES_HTML = (
+    (re.compile(r"52XXXXXXXXXX"), "52XXXXXXXXXX"),
+    (re.compile(r"PENDIENTE"), "PENDIENTE"),
+    (re.compile(r"foto pendiente", re.I), "«Foto pendiente»"),
+    (re.compile(r"""class\s*=\s*["'][^"']*\bfoto__espacio\b"""), "el hueco de la foto (.foto__espacio)"),
+)
 
 RE_A = re.compile(r"<a\b(?:[^>\"']|\"[^\"]*\"|'[^']*')*>", re.I)
 RE_CONTACTO = re.compile(r"""\bdata-contacto\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.I)
@@ -100,12 +110,15 @@ def main(argv=None):
     sitio = leer_sitio(raiz)
     urls = destinos(sitio)
     pendientes = marcadores(sitio)
-    errores, cambiados, enlaces = [], [], 0
+    errores, cambiados, enlaces, en_paginas = [], [], 0, []
     for p in recorrer(raiz, ".html"):
         rel = p.relative_to(raiz)
         viejo = p.read_text(encoding="utf-8")
         enlaces += len(RE_CONTACTO.findall(viejo))
         nuevo = procesar(viejo, urls, rel.as_posix(), errores)
+        # Lo que quedará publicado (con --check, lo que hay; si no, lo que se escribe).
+        final = viejo if args.check else nuevo
+        en_paginas += [f"{rel.as_posix()}: {que}" for patron, que in MARCADORES_HTML if patron.search(final)]
         if nuevo != viejo:
             cambiados.append(rel.as_posix())
             if not args.check:
@@ -125,6 +138,10 @@ def main(argv=None):
         falla = True
     if args.exigir_reales and pendientes:
         print(f"FALLA [contacto] --exigir-reales: quedan marcadores en sitio.json ({', '.join(pendientes)})")
+        falla = True
+    if args.exigir_reales and en_paginas:
+        for m in en_paginas:
+            print(f"FALLA [contacto] --exigir-reales: queda un marcador en {m}")
         falla = True
     return 1 if falla else 0
 
