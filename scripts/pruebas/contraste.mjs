@@ -7,7 +7,8 @@
        píxeles de las cajas de las líneas de texto: ese es el fondo REAL (degradados, imágenes, tarjetas);
     3. se calcula la razón de contraste contra CADA píxel muestreado y se queda la peor.
   Falla por debajo de 4.5:1, o 3:1 si el texto es grande (≥ 24 px, o ≥ 18.66 px en negrita).
-  Se omiten: texto con opacidad efectiva 0, fuera de pantalla, sin caja, o con color transparente.
+  Se omiten: texto con opacidad efectiva 0, fuera de pantalla, sin caja, con color transparente o recortado del todo
+  (.solo-lectores: clip-path inset(50%) o clip rect(0,0,0,0); no se ve, y su caja de 1 px caía a veces sobre un borde oscuro).
   Límite: no mide texto generado con ::before/::after ni texto dentro de <img>/<svg>.
   Uso: node contraste.mjs [--raiz DIR] [--salida DIR]
 */
@@ -32,6 +33,14 @@ function prepararTextos() {
         const el = h.parentElement;
         const cs = getComputedStyle(el);
         if (cs.display === "none" || cs.visibility === "hidden") continue;
+        const recortado = (n) => {
+          for (; n && n.nodeType === 1; n = n.parentElement) {
+            const s = getComputedStyle(n);
+            if (/^inset\(\s*50%\s*(?:50%\s*)*\)$/.test(s.clipPath) || /^rect\(0(px)?,?\s*0(px)?,?\s*0(px)?,?\s*0(px)?\)$/.test(s.clip)) return true;
+          }
+          return false;
+        };
+        if (recortado(el)) continue;
         const op = opacidadEfectiva(el);
         if (op < 0.01) continue;
         const rango = document.createRange();
