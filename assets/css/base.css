@@ -1,0 +1,185 @@
+/*
+ * base.css: reset mínimo, tipografía, enlaces, foco, contenedor y retícula.
+ * Solo usa los tokens de tokens.css. Va después de tokens.css y fuentes.css.
+ */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    overflow-x: clip; /* nunca overflow:hidden ni 100vw */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    background: var(--paper);
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    overflow-x: clip;
+    background: var(--paper);
+    color: var(--ink-2);
+    font-family: var(--font-body);
+    font-size: var(--texto);
+    font-weight: 400;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Títulos: Hedvig 400, tipo oración, nunca en mayúsculas. */
+  h1, h2, h3, h4, h5, h6 {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.022em;
+    line-height: 1;
+    text-transform: none;
+    text-wrap: balance;
+  }
+  h1 { font-size: var(--titulo-1); }
+  h2 { font-size: var(--titulo-2); }
+  h3 { font-size: var(--titulo-3); }
+  h4, h5, h6 { font-size: var(--titulo-4); }
+
+  p, ul, ol, dl, figure, blockquote {
+    margin: 0;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  ul, ol {
+    padding-inline-start: 1.25em;
+  }
+
+  strong, b {
+    font-weight: 500; /* Geist solo se carga en 400 y 500 */
+  }
+  small {
+    font-size: var(--texto-chico);
+  }
+
+  img, svg, video {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  hr {
+    height: 0;
+    margin: 0;
+    border: 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  button, input, select, textarea {
+    font: inherit;
+    color: inherit;
+  }
+  button {
+    cursor: pointer;
+  }
+
+  /* Enlaces: subrayado fino en reposo; en hover se dibuja otra línea de tinta. */
+  a {
+    color: var(--ink);
+    text-decoration: none;
+    background-image:
+      linear-gradient(var(--ink), var(--ink)),
+      linear-gradient(var(--muted), var(--muted));
+    background-repeat: no-repeat;
+    background-position: 0 100%, 0 100%;
+    background-size: 0% 1px, 100% 1px;
+    padding-bottom: 0.1em;
+    transition: background-size var(--t-normal) var(--ease);
+  }
+  a:hover {
+    background-size: 100% 2px, 100% 1px;
+  }
+
+  /* Foco: anillo de 2 px, aparece al instante (no hay transición de outline). */
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  /* Contenedor: márgenes laterales de --margen (24 px celular, 56 px escritorio). */
+  .contenedor {
+    width: 100%;
+    max-width: calc(var(--ancho-max) + 2 * var(--margen));
+    margin-inline: auto;
+    padding-inline: var(--margen);
+  }
+
+  /* Retícula: columnas automáticas, sin media queries y sin scroll horizontal. */
+  .rejilla {
+    display: grid;
+    gap: var(--espacio-4); /* deja sitio a las marcas de corte (16 px por lado) */
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  }
+  .rejilla--2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); }
+  .rejilla--3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); }
+
+  /* Sección con aire vertical constante. */
+  .seccion {
+    padding-block: var(--espacio-seccion);
+  }
+
+  /* Pila vertical: separa a los hijos directos. */
+  .pila > * + * {
+    margin-block-start: var(--espacio-2);
+  }
+  .pila--grande > * + * {
+    margin-block-start: var(--espacio-3);
+  }
+
+  /* Solo lectores de pantalla. */
+  .solo-lectores {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* Enlace para saltar al contenido. */
+  .salto {
+    position: absolute;
+    inset-inline-start: var(--espacio-2);
+    inset-block-start: 0;
+    z-index: 10;
+    padding: 0.75rem 1rem;
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: var(--radius);
+    background-image: none;
+    transform: translateY(-120%);
+    transition: transform var(--t-normal) var(--ease);
+  }
+  .salto:focus-visible {
+    transform: translateY(0.5rem);
+  }
+}
+
+/* Movimiento reducido: todo instantáneo. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}
