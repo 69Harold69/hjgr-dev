@@ -11,11 +11,11 @@ Sitio estático, HTML, CSS y JavaScript **sin paso de build**: lo que está en e
 | Ruta | Qué es | Estado |
 | --- | --- | --- |
 | `index.html` | Home, una sola página larga | Pendiente (#4, #5) |
-| `vidrierias/index.html` | Página por giro | Pendiente (#8) |
-| `privacidad/index.html` | Aviso de privacidad | Pendiente (#10) |
-| `404.html`, `sitemap.xml`, `robots.txt` | Página de error y SEO técnico | Pendiente (#9) |
+| `vidrierias/index.html` | Página por giro. **Generada** por `scripts/giros.py` desde `index.html` y `scripts/giros/vidrierias.json`: no se edita a mano | Listo (#8) |
+| `privacidad/index.html` | Aviso de privacidad. La fecha «Vigente desde» la escribe `scripts/contacto.py` desde `aviso_vigente` de `scripts/sitio.json` (marcador `PENDIENTE` hasta publicar) | Listo (#10) |
+| `404.html`, `sitemap.xml`, `robots.txt` | Página de error y SEO técnico. Datos estructurados (JSON-LD) en la home y en cada página de giro | Listo (#9) |
 | `assets/css`, `assets/js`, `assets/fuentes`, `assets/img` | Estilos, scripts, fuentes e imágenes, todo alojado aquí | Pendiente (#3) |
-| `scripts/` | Herramientas (`versionar.py`, `dominio.py`, `contacto.py`), datos del sitio (`sitio.json`, `hosts-externos.json`) y pruebas (`pruebas/`). El servidor no lo sirve | Listo (#2) |
+| `scripts/` | Herramientas (`giros.py`, `versionar.py`, `dominio.py`, `contacto.py`), datos del sitio (`sitio.json`, `hosts-externos.json`, `giros/<giro>.json`) y pruebas (`pruebas/`). El servidor no lo sirve | Listo (#2) |
 
 ## Reglas del sitio
 
@@ -50,12 +50,15 @@ Cada prueba descubre sola las páginas (todos los `.html`, sin `scripts/`, `node
 
 | Comando | Qué comprueba |
 | --- | --- |
-| `node validar.mjs [--solo regla,...] [--estricto]` | Reglas estáticas: `html-validate`, `csp-estatica`, `csp-readme`, `formularios`, `meta`, `json-ld`, `sitemap`, `imagenes`, `enlaces`, `trato` (de usted), `voz`, `precios`, `marcadores`, `dominio`, `versionado`, `contacto`. `--lista` las enumera |
+| `node validar.mjs [--solo regla,...] [--estricto]` | Reglas estáticas: `html-validate`, `csp-estatica`, `csp-readme`, `formularios`, `meta`, `json-ld` (toda página indexable lleva JSON-LD válido, con precios solo de la lista y sin reseñas, teléfono, correo, horario ni calle), `sitemap`, `imagenes`, `enlaces`, `trato` (de usted, también en `<title>`, metadatos, `alt`, `aria-label` y JSON-LD), `voz`, `precios` (además, cada fila de la tabla con sus cifras exactas y ninguna cifra sin `$`), `marcadores` (también «Foto pendiente»), `giros`, `dominio`, `versionado`, `contacto`. `--lista` las enumera |
+| `node ocultos.mjs` | El servidor de pruebas imita a Caddy en lo que no sirve: `OCULTOS` igual que producción y `/assets/muestra/`, `scripts/` y los `.md` responden 404 (solo existe la ruta de pruebas `/_pruebas/muestra/`, para la muestra interna en `scripts/pruebas/muestra/`) |
 | `node sin-js.mjs` | Con JavaScript apagado, en 1440, 768, 390 y 320 px: `<h1>` y enlaces de contacto visibles, sin scroll horizontal ni texto con opacidad 0 |
 | `node tactil.mjs` | En 390 px, todo `a`, `button` y `summary` mide al menos 44×44 px (excepción: atributo `data-tactil-excepcion`) |
 | `node foco.mjs` | Tabulando, cada elemento enfocable muestra un indicador de foco visible |
+| `node accesibilidad.mjs` | En 1280 y 390 px, con el árbol de accesibilidad de Chromium: títulos sin saltos, un `<main>`, nombre accesible = texto visible en `a`, `button` y `summary`, ningún foco tapado por la barra fija y «Saltar al contenido» que lleva al `<main>` |
 | `node contraste.mjs` | Contraste de todo el texto visible con píxeles reales, tema claro: 4.5:1, o 3:1 para texto grande |
-| `node cls.mjs [--max 0]` | Layout Instability con red limitada en 360, 390 y 412 px |
+| `node animaciones.mjs` | Entrada del hero y armado de cada sección al hacer scroll, en la home y en las páginas de giro (comparten hero): cada carga (el H1 y su párrafo visibles cuadro a cuadro desde el primer pintado y el LCP es el H1), una sola vez por sección, cuando su borde superior entra ~10 % de la pantalla (con 5 % no, con 15 % sí) y en 1.5 s como máximo (1 s en celular), 2 o 3 cursores (1 o 2 en celular), texto siempre visible, solo `transform`, `opacity` y `clip-path`, scroll rápido, ancla, foco, «Saltar» (también en una sección) y Escape, movimiento reducido (también activado a mitad de una sección), sin JS, impresión a mitad de una sección y fallas simuladas |
+| `node cls.mjs [--max 0]` | Layout Instability con red limitada en 360, 390 y 412 px, recorriendo toda la página (lento, con las secciones armándose, y rápido) |
 | `node lighthouse.mjs [--corridas 3]` | Móvil y escritorio, las cuatro categorías, mediana de N corridas; falla por debajo de 95 |
 | `node capturas.mjs` | Capturas de página completa en 1440, 768, 390 y 320 px en `scripts/pruebas/salida/` (ignorada por git) |
 | `python3 -I test_herramientas.py [--rapido]` | Pruebas de las propias herramientas: `fixtures/bueno` pasa todo y cada `fixtures/malos/<caso>` falla por su regla |
@@ -63,9 +66,31 @@ Cada prueba descubre sola las páginas (todos los `.html`, sin `scripts/`, `node
 
 Herramientas que escriben en los `.html` (todas aceptan `--check`, que no escribe y sale con 1 si algo no coincide, y `--raiz DIR`):
 
+- `python3 scripts/giros.py`: genera cada página de giro (`<giro>/index.html`) desde `index.html` (plantilla, con marcas `data-giro`) y `scripts/giros/<giro>.json`. Esquema en `scripts/giros/LEEME.md`. Si a la plantilla le falta una marca, falla con un mensaje claro y no escribe nada.
 - `python3 scripts/versionar.py`: sella `?v=<hash>` en los CSS y JS propios. Córralo cada vez que cambie algo de `assets/css` o `assets/js`.
 - `python3 scripts/dominio.py [--origen https://x.y]`: reescribe canonical, `og:url`, `og:image`, Twitter, JSON-LD, `sitemap.xml` y `robots.txt` según `origen` de `scripts/sitio.json`. Los hosts externos permitidos viven en `scripts/hosts-externos.json`.
-- `python3 scripts/contacto.py [--exigir-reales]`: escribe el `href` de los `<a data-contacto="whatsapp">` y `<a data-contacto="cal">` a partir de `scripts/sitio.json`. Mientras `whatsapp`, `cal` o `foto` sean marcadores (`52XXXXXXXXXX`, `PENDIENTE`) avisa; `--exigir-reales` falla si queda alguno.
+- `python3 scripts/contacto.py [--exigir-reales]`: escribe el `href` de los `<a data-contacto="whatsapp">` y `<a data-contacto="cal">` a partir de `scripts/sitio.json`; los dos abren en pestaña nueva (`target="_blank" rel="noopener"`). Mientras `whatsapp`, `cal` o `foto` sean marcadores (`52XXXXXXXXXX`, `PENDIENTE`) avisa; `--exigir-reales` falla si queda alguno en `sitio.json` o en cualquier `.html` (también el hueco «Foto pendiente», que se quita a mano de `index.html`).
+
+### Cómo cambiar un texto
+
+Los textos de la home y de los giros salen de DOS fuentes: `index.html` (todo lo que es común) y `scripts/giros/<giro>.json` (titular, tres problemas, título y descripción de cada giro). Nunca edite `<giro>/index.html` a mano: la regla `giros` (y `giros.py --check`) lo detecta.
+
+1. Edite `index.html` o el JSON del giro (o `scripts/sitio.json` para WhatsApp, agenda u origen).
+2. Corra, **en este orden**:
+
+```sh
+python3 scripts/giros.py      # regenera las páginas de giro desde la plantilla
+python3 scripts/contacto.py   # href de los enlaces de WhatsApp y agenda
+python3 scripts/dominio.py    # URLs absolutas (canonical, og:*, JSON-LD, sitemap, robots)
+python3 scripts/versionar.py  # sello ?v=<hash> de CSS y JS
+node scripts/pruebas/todo.mjs
+```
+
+El orden importa porque `giros.py` arma cada página con lo que la plantilla tiene en ese momento, y las otras tres herramientas reescriben plantilla y páginas de giro por igual. Así el resultado es estable: correr los cuatro una segunda vez no cambia nada, y `giros.py --check` sigue pasando después de `contacto`, `dominio` y `versionar` (comprueba que la página sea exactamente lo que saldría de la plantilla de hoy). Si cambia solo CSS o JS, basta `versionar.py`.
+
+Un giro nuevo (`fumigadoras`, `uniformes`, `distribuidoras`, `talleres`) es un archivo `scripts/giros/<giro>.json` más su `<loc>` en `sitemap.xml`; después, los cuatro comandos de arriba.
+
+**Entrada del hero y armado de secciones.** La entrada del hero sale en cada carga de la home y de las páginas de giro (arriba del todo, sin movimiento reducido). Además, cada sección se arma una sola vez por carga cuando su borde superior entra ~10 % en pantalla, con 2 o 3 cursores (2 como máximo en celular) que arman de verdad bordes, sombras, marcas, capturas y líneas de la tabla, en 1.4 s como máximo (0.94 s en celular); lo que queda atrás al hacer scroll rápido se arma al instante. «Saltar» (o Escape) apaga los cursores en toda la página durante esa visita. No se guarda nada en el navegador (ni `localStorage` ni cookies): en la siguiente carga vuelven. Detalle en `assets/css/LEEME.md`.
 
 Si cambia la CSP, cámbiela en este README y en `scripts/pruebas/lib/servidor.mjs`: la regla `csp-readme` exige que sean idénticas.
 
