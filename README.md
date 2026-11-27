@@ -90,7 +90,7 @@ El orden importa porque `giros.py` arma cada página con lo que la plantilla tie
 
 Un giro nuevo (`fumigadoras`, `uniformes`, `distribuidoras`, `talleres`) es un archivo `scripts/giros/<giro>.json` más su `<loc>` en `sitemap.xml`; después, los cuatro comandos de arriba.
 
-**Entrada del hero y armado de secciones.** La entrada del hero sale en cada carga de la home y de las páginas de giro (arriba del todo, sin movimiento reducido). Además, cada sección se arma una sola vez por carga al entrar ~30 % en pantalla, con 2 o 3 cursores (2 en celular), en 1.3 s como máximo; lo que queda atrás al hacer scroll rápido se arma al instante. «Saltar» (o Escape) apaga los cursores en toda la página durante esa visita. No se guarda nada en el navegador (ni `localStorage` ni cookies): en la siguiente carga vuelven. Detalle en `assets/css/LEEME.md`.
+**Entrada del hero y armado de secciones.** La entrada del hero sale en cada carga de la home y de las páginas de giro (arriba del todo, sin movimiento reducido). Además, cada sección se arma una sola vez por carga cuando su borde superior entra ~10 % en pantalla, con 2 o 3 cursores (2 como máximo en celular) que arman de verdad bordes, sombras, marcas, capturas y líneas de la tabla, en 1.4 s como máximo (0.94 s en celular); lo que queda atrás al hacer scroll rápido se arma al instante. «Saltar» (o Escape) apaga los cursores en toda la página durante esa visita. No se guarda nada en el navegador (ni `localStorage` ni cookies): en la siguiente carga vuelven. Detalle en `assets/css/LEEME.md`.
 
 Si cambia la CSP, cámbiela en este README y en `scripts/pruebas/lib/servidor.mjs`: la regla `csp-readme` exige que sean idénticas.
 

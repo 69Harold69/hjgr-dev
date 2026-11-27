@@ -10,7 +10,7 @@
     pointer-events:none, sin scroll horizontal); a mitad de la animación todo su texto está a opacidad 1; solo se animan transform y opacity; scroll rápido
     hasta el final: lo que quedó atrás se arma al instante y nada queda desarmado; «Saltar» y Escape; movimiento reducido, sin JS e impresión: todo armado;
     carga con ancla a una sección intermedia: lo de arriba está armado; foco de teclado en una sección sin armar: se arma al instante; el JS falla: todo armado;
-    umbral: con ~10 % a la vista no se arma y con ~50 % sí; impresión a mitad de las etapas y a mitad de trabajo (capturas y marcas);
+    umbral (#35): con el borde superior ~5 % adentro de la pantalla no se arma y con ~15 % sí; impresión a mitad de las etapas y a mitad de trabajo (capturas y marcas);
     «reducir movimiento» activado a mitad de una sección: se apaga todo al instante, sin cursores sueltos ni cambio de alto.
   El H1 y su párrafo se revisan cuadro a cuadro desde el primer pintado (no solo a mitad de la entrada).
   Comprueba, en 1280×800 y 390×844 (cada caso en un contexto nuevo):
@@ -33,13 +33,18 @@
   propio contexto limpio. Si el sitio no tiene hero (p. ej. fixtures/bueno), no hay nada que probar.
   Uso: node animaciones.mjs [--raiz DIR]
 */
-import { conPaginas, leerArgs, salir } from "./lib/comun.mjs";
+import fs from "node:fs";
+import path from "node:path";
+import { AQUI, conPaginas, leerArgs, salir, slug } from "./lib/comun.mjs";
 
 const a = leerArgs();
 if (a.ayuda || a.help) salir(0, "Uso: node animaciones.mjs [--raiz DIR] [--solo-secciones] [--solo-saltar]");
+const soloPrimero = !!a["solo-primer-cuadro"]; // para iterar: solo 8j (primer cuadro sin armar)
 const soloSaltar = !!a["solo-saltar"]; // para iterar: solo «Saltar animación (Esc)»
-const soloSecciones = !!a["solo-secciones"] || soloSaltar; // para iterar: salta el hero y las fallas simuladas
+const soloSecciones = !!a["solo-secciones"] || soloSaltar || soloPrimero; // para iterar: salta el hero y las fallas simuladas
 
+const SALIDA_ANIM = path.join(AQUI, "salida/animaciones");
+fs.mkdirSync(SALIDA_ANIM, { recursive: true });
 const VIEWPORTS = [
   { width: 1280, height: 800 },
   { width: 390, height: 844 },
@@ -156,6 +161,13 @@ const ESTADO_ARMADO = () => {
     const sin = movil ? [fila] : [...fila.children];
     for (const el of sin) if (transp(getComputedStyle(el).backgroundColor)) f.push("fila del diagnóstico sin resaltado");
   }
+  // Bordes y sombras reales de tarjetas y hojas, recorte de las capturas, líneas de la tabla.
+  for (const el of document.querySelectorAll("main > section:not(.hero) .captura, main > section:not(.hero) .hoja")) if (getComputedStyle(el).boxShadow === "none") f.push(`${el.className}: sin sombra/borde`);
+  for (const el of document.querySelectorAll(".captura__img")) if (getComputedStyle(el).clipPath !== "none") f.push(`captura__img: recorte ${getComputedStyle(el).clipPath}`);
+  for (const el of document.querySelectorAll(".tabla, .tabla th, .tabla td")) {
+    const cs = getComputedStyle(el);
+    if (transp(el.matches(".tabla") ? cs.borderTopColor : cs.borderBottomColor)) f.push("tabla: línea transparente");
+  }
   if (document.querySelector(".cursores-seccion")) f.push("quedan capas de cursores de sección");
   return f;
 };
@@ -166,7 +178,7 @@ const SONDA_SECCIONES = () => {
   const S = (window.__sec = { s: {}, props: [], muestras: 0, capas: 0, cursoresVistos: 0, scrollH: false });
   const idx = (el) => [...document.querySelectorAll("main > section")].indexOf(el);
   const reg = (el) => (S.s[idx(el)] ??= { creada: null, armada: null, armadas: 0, capas: 0, max: 0, cursoresOk: true, texto: [] });
-  const SEG = new Set(["offset", "computedOffset", "easing", "composite", "transform", "opacity"]);
+  const SEG = new Set(["offset", "computedOffset", "easing", "composite", "transform", "opacity", "clipPath"]); // solo transform, opacity y clip-path
   const propiedades = new Set();
   const mirar = () => {
     const secs = document.querySelectorAll("main > section");
@@ -216,6 +228,86 @@ const SONDA_SECCIONES = () => {
   else arrancar();
 };
 
+
+/* Estado «sin armar» de una sección (índice dentro de main > section) en un instante: cuenta las piezas visuales que reconoce y lista las que ya se ven armadas. */
+const ESTADO_SIN_ARMAR = (n) => {
+  const sec = document.querySelectorAll("main > section")[n];
+  const piezas = { n: 0 };
+  const visibles = [];
+  const transp = (c) => c === "rgba(0, 0, 0, 0)" || c === "transparent";
+  const escala = (t) => {
+    if (t === "none") return 1;
+    const m = new DOMMatrix(t);
+    return Math.max(Math.abs(m.a), Math.abs(m.d));
+  };
+  const cada = (sel, fn, nombre) => sec.querySelectorAll(sel).forEach((el) => { piezas.n++; const m = fn(el); if (m) visibles.push(`${nombre || sel}: ${m}`); });
+  cada(".captura, .hoja", (e) => getComputedStyle(e).boxShadow !== "none" && `sombra/borde ${getComputedStyle(e).boxShadow.slice(0, 30)}`, "tarjeta o hoja");
+  cada(".captura__img", (e) => getComputedStyle(e).clipPath === "none" && "sin recorte (captura ya revelada)", "captura");
+  cada(".marcas__esq", (e) => Number(getComputedStyle(e).opacity) > 0 && `opacidad ${getComputedStyle(e).opacity}`, "marca de corte");
+  cada(".tabla", (e) => !transp(getComputedStyle(e).borderTopColor) && "borde superior visible", "tabla");
+  cada(".tabla tbody th, .tabla tbody td", (e) => !transp(getComputedStyle(e).borderBottomColor) && "línea de fila visible", "fila de la tabla");
+  cada(".tabla__destacada th, .tabla__destacada td", (e) => { const t = getComputedStyle(e); return getComputedStyle(e, "::after").clipPath === "none" && !transp(t.backgroundColor) && "resaltado del diagnóstico ya visible"; }, "resaltado");
+  cada(".problemas, .faq", (e) => !transp(getComputedStyle(e).borderTopColor) && "filete superior visible", "filete");
+  cada(".problemas__fila, .faq__item, .cierre__titulo", (e) => !transp(getComputedStyle(e).borderBottomColor) && "línea inferior visible", "línea");
+  cada(".fila", (e) => !transp(getComputedStyle(e).borderTopColor) && "línea de fila visible", "fila de sistemas");
+  cada(".captura__cuerpo", (e) => !transp(getComputedStyle(e).borderTopColor) && "filete visible", "filete de captura");
+  cada(".paso", (e) => !transp(getComputedStyle(e, "::before").borderBottomColor) && "línea naranja visible", "paso");
+  cada(".proceso__linea", (e) => escala(getComputedStyle(e).transform) > 0.001 && "línea de etapas dibujada", "línea de etapas");
+  cada(".proceso__marca", (e) => Number(getComputedStyle(e).opacity) > 0 && "marca visible", "marca de etapa");
+  if (sec.matches(".cierre")) cada(":scope", (e) => !transp(getComputedStyle(e).borderTopColor) && "filete superior visible", "cierre");
+  return { piezas: piezas.n, visibles };
+};
+
+/* Sonda de cursores y capas del armado, cuadro a cuadro: etiquetas contra títulos, cursores visibles con el objetivo fuera de pantalla,
+   piezas dibujándose a la vista sin un cursor cerca y cuándo empieza a verse cada capa (secuencia). */
+const SONDA_CURSORES = () => {
+  const S = (window.__cur = { muestras: 0, sinCursor: [], etiquetas: [], fuera: [], inicios: {} });
+  const vistas = new WeakMap();
+  const opac = (el) => { let o = 1; for (let n = el; n && n.nodeType === 1; n = n.parentElement) o *= Number(getComputedStyle(n).opacity); return o; };
+  const escala = (el) => { const t = getComputedStyle(el).transform; if (t === "none") return 1; const m = new DOMMatrix(t); return Math.max(Math.abs(m.a), Math.abs(m.d)); };
+  const dist = (px, py, r) => Math.hypot(Math.max(r.left - px, 0, px - r.right), Math.max(r.top - py, 0, py - r.bottom));
+  const t0 = performance.now();
+  const cuadro = () => {
+    const ahora = performance.now() - t0;
+    const cursores = [...document.querySelectorAll(".cursores-seccion .cursor")].filter((el) => opac(el) > 0.05);
+    const puntas = cursores.map((el) => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, r }; });
+    if (cursores.length) S.muestras++;
+    for (const el of cursores) {
+      const sec = el.closest("main > section");
+      const r = el.getBoundingClientRect();
+      const rol = el.querySelector(".cursor__rol");
+      const rr = rol.getBoundingClientRect();
+      if (rol && opac(rol) > 0.05) for (const t of sec.querySelectorAll("h2, h3, .nombre")) {
+        const q = t.getBoundingClientRect();
+        if (q.width > 0 && Math.min(rr.right, q.right) - Math.max(rr.left, q.left) > 1 && Math.min(rr.bottom, q.bottom) - Math.max(rr.top, q.top) > 1 && S.etiquetas.length < 6) S.etiquetas.push(`«${rol.textContent}» sobre «${t.textContent.trim().slice(0, 30)}» a ${Math.round(ahora)} ms`);
+      }
+      // Objetivo fuera: la punta fuera de la pantalla (o tapada por la barra de 72 px) mientras la flecha todavía se ve.
+      const alto = r.bottom > 72 && r.top < innerHeight;
+      if (alto && (r.top < 72 - 2 || r.top > innerHeight - 2 || r.left < -2 || r.left > innerWidth - 2) && S.fuera.length < 6) S.fuera.push(`cursor ${el.className} con la punta en (${Math.round(r.left)}, ${Math.round(r.top)}) a ${Math.round(ahora)} ms`);
+    }
+    for (const el of document.querySelectorAll(".cursores-seccion .arma-capa")) {
+      const sec = el.closest("main > section");
+      const nombre = sec.id || sec.className.split(" ")[0];
+      const esSombra = el.classList.contains("arma-capa--sombra");
+      const prog = esSombra ? Number(getComputedStyle(el).opacity) : escala(el);
+      const r = el.getBoundingClientRect();
+      if (prog > 0.02 && !vistas.has(el)) {
+        vistas.set(el, ahora);
+        (S.inicios[nombre] ??= []).push(ahora - (S.base?.[nombre] ?? 0));
+        S.base ??= {};
+        S.base[nombre] ??= ahora;
+        S.inicios[nombre][S.inicios[nombre].length - 1] = ahora - S.base[nombre];
+      }
+      const aVista = r.bottom > 90 && r.top < innerHeight - 60 && r.right > 0 && r.left < innerWidth;
+      if (!esSombra && prog > 0.04 && prog < 0.96 && aVista && r.width * r.height > 0) {
+        const cerca = puntas.some((p) => dist(p.x, p.y, r) < 90);
+        if (!cerca && S.sinCursor.length < 6) S.sinCursor.push(`${nombre} ${el.className.replace("arma-capa", "capa")} al ${Math.round(prog * 100)} % a ${Math.round(ahora)} ms (cursores: ${puntas.length})`);
+      }
+    }
+    requestAnimationFrame(cuadro);
+  };
+  addEventListener("DOMContentLoaded", () => requestAnimationFrame(cuadro));
+};
 
 /* Sonda de «Saltar»: cuadro a cuadro mientras el botón existe, cuánto texto visible tapa (intersección con cada línea de texto), en qué esquina está y qué hay en la pantalla. */
 const SONDA_SALTAR = () => {
@@ -510,6 +602,72 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
       const secciones = (page) => page.evaluate(() => [...document.querySelectorAll("main > section:not(.hero)")].map((s, i) => ({ i: [...document.querySelectorAll("main > section")].indexOf(s), nombre: s.id || s.className.split(" ")[0], tinta: s.classList.contains("banda--tinta") })));
       const irA = (page, i) => page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; window.scrollTo(0, window.scrollY + s.getBoundingClientRect().top - 90); }, i);
 
+      /* 8j. (#35) En el PRIMER cuadro en que cada sección entra en pantalla sus piezas visuales están SIN armar (estilos computados) y al final están armadas.
+             Guarda un PNG por sección en salida/animaciones/ (primer cuadro, a mitad y armado). */
+      {
+        const { c, page } = await abrirSec();
+        await sinAnimacion(page);
+        const lista = (await secciones(page)).filter((x) => !x.tinta);
+        for (const x of lista) {
+          // La sección está justo debajo de la pantalla (sin entrar) y de golpe asoma 2 px: se lee el primer cuadro.
+          await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; window.scrollTo(0, window.scrollY + s.getBoundingClientRect().top - innerHeight - 4); }, x.i);
+          await page.waitForTimeout(120);
+          const r = await page.evaluate(ESTADO_SIN_ARMAR, x.i);
+          const base = path.join(SALIDA_ANIM, `${slug(ruta)}-${x.nombre}-${vp.width}`);
+          if (r.piezas < 3) falla(`sin armar ${x.nombre} ${en}`, `la prueba solo reconoció ${r.piezas} piezas visuales (debían ser 3 o más)`);
+          for (const m of r.visibles) falla(`sin armar ${x.nombre} ${en}`, `en el primer cuadro ya se ve armado: ${m}`);
+          await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; window.scrollTo(0, window.scrollY + s.getBoundingClientRect().top - (innerHeight * 0.45)); }, x.i);
+          await page.screenshot({ path: `${base}-1-primer-cuadro.png` });
+          if (/^(trabajo|precios)$/.test(x.nombre)) {
+            await page.waitForTimeout(chico ? 350 : 550);
+            await page.screenshot({ path: `${base}-2-a-mitad.png` });
+          }
+          await page.waitForTimeout(chico ? 1400 : 1800);
+          await page.screenshot({ path: `${base}-3-armado.png` });
+          const fin = await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; return { armada: s.classList.contains("armada"), anims: s.getAnimations({ subtree: true }).length, capas: s.querySelectorAll(".cursores-seccion").length }; }, x.i);
+          if (!fin.armada || fin.anims || fin.capas) falla(`armado al final ${x.nombre} ${en}`, `armada ${fin.armada}, animaciones activas ${fin.anims}, capas ${fin.capas}`);
+        }
+        for (const m of await page.evaluate(ESTADO_ARMADO)) falla(`armado al final ${en}`, m);
+        await cerrar(c, `consola primer cuadro ${en}`);
+      }
+
+      /* 8k. (#35) Cursor y pieza sincronizados, en secuencia, etiquetas fuera de los títulos y ningún cursor visible con su objetivo fuera de la pantalla. */
+      {
+        const c = await abrir({ viewport: vp });
+        await c.ctx.addInitScript(SONDA_CURSORES);
+        const page = await c.ctx.newPage();
+        await page.goto(servidor.url + ruta, { waitUntil: "load" });
+        await sinAnimacion(page);
+        const lista = (await secciones(page)).filter((x) => !x.tinta);
+        for (const x of lista) {
+          // Se acerca la sección como lo hace un lector: llega al ~10 % y sigue subiendo hasta dejar visible su parte útil (precios: hasta la fila del diagnóstico).
+          await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; window.scrollTo(0, window.scrollY + s.getBoundingClientRect().top - innerHeight * 0.88); }, x.i);
+          await page.waitForTimeout(90);
+          await page.evaluate(([n, nom]) => {
+            const s = document.querySelectorAll("main > section")[n];
+            const meta = nom === "precios" && s.querySelector(".tabla__destacada") ? s.querySelector(".tabla__destacada").getBoundingClientRect().bottom + 24 - innerHeight * 0.9 : s.getBoundingClientRect().top - 96;
+            const y0 = scrollY;
+            const t0 = performance.now();
+            const paso = () => { const k = Math.min(1, (performance.now() - t0) / 350); scrollTo(0, y0 + meta * k); if (k < 1) requestAnimationFrame(paso); };
+            paso();
+          }, [x.i, x.nombre]);
+          await page.waitForTimeout(chico ? 1300 : 1700);
+        }
+        const R = await page.evaluate(() => window.__cur);
+        if (R.muestras < 30) falla(`sincronía ${en}`, `la prueba casi no muestreó (${R.muestras} cuadros)`);
+        for (const m of R.sinCursor) falla(`sincronía ${en}`, `pieza dibujándose a la vista sin cursor cerca: ${m}`);
+        for (const m of R.etiquetas) falla(`etiqueta sobre un título ${en}`, m);
+        for (const m of R.fuera) falla(`cursor con objetivo fuera de la pantalla ${en}`, m);
+        for (const [sec, ts] of Object.entries(R.inicios)) {
+          const cubos = new Set(ts.map((t) => Math.round(t / 25)));
+          if (ts.length >= 4 && cubos.size < 3) falla(`secuencia ${en}`, `sección ${sec}: ${ts.length} piezas y solo ${cubos.size} momentos distintos (no deben aparecer todas a la vez)`);
+        }
+        console.log(`  sincronía ${en}: ${R.muestras} cuadros, piezas por sección ${JSON.stringify(Object.fromEntries(Object.entries(R.inicios).map(([k, v]) => [k, v.length])))}`);
+        await cerrar(c, `consola sincronía ${en}`);
+      }
+
+      if (soloPrimero) continue;
+
       /* 8a. Lectura normal: sección por sección. */
       {
         const { c, page } = await abrirSec();
@@ -528,7 +686,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
           if (r.creada !== null) {
             const dur = r.armada - r.creada;
             if (dur > maxMs) falla(`secciones ${nombre}`, `tardó ${dur.toFixed(0)} ms (máximo ${maxMs})`);
-            if (r.max < 2 || r.max > (chico ? 2 : 3)) falla(`secciones ${nombre}`, `${r.max} cursores (se esperan 2 a ${chico ? 2 : 3})`);
+            if (r.max < (chico ? 1 : 2) || r.max > (chico ? 2 : 3)) falla(`secciones ${nombre}`, `${r.max} cursores (se esperan ${chico ? 1 : 2} a ${chico ? 2 : 3})`);
             if (!r.cursoresOk) falla(`secciones ${nombre}`, "los cursores o su capa no son aria-hidden con pointer-events:none");
             for (const m of r.texto) falla(`secciones ${nombre} a mitad de la animación`, `texto escondido: ${m}`);
             console.log(`  ${nombre}: ${r.max} cursores, ${dur.toFixed(0)} ms`);
@@ -672,7 +830,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         await cerrar(c, `consola foco ${en}`);
       }
 
-      /* 8i. Umbral ~30 %: con un 10 % de la sección a la vista no se arma; con un 50 % sí (30 % de la sección, o de la pantalla bajo la barra si es más alta). */
+      /* 8i. Umbral ~10 % de la altura de la pantalla (#35): con el borde superior de la sección apenas 5 % adentro no se arma; con 15 % adentro sí. */
       {
         const { c, page } = await abrirSec();
         await sinAnimacion(page);
@@ -682,21 +840,20 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
           page.evaluate(
             ([n, f]) => {
               const s = document.querySelectorAll("main > section")[n];
-              const ref = Math.min(s.getBoundingClientRect().height, innerHeight - 88);
-              window.scrollTo(0, window.scrollY + s.getBoundingClientRect().top - (innerHeight - f * ref));
+              window.scrollTo(0, window.scrollY + s.getBoundingClientRect().top - innerHeight * (1 - f));
               const q = s.getBoundingClientRect();
-              return { visible: Math.round((Math.min(q.bottom, innerHeight) - Math.max(q.top, 88)) / ref * 100), tocada: s.classList.contains("armada") || !!s.querySelector(".cursores-seccion") };
+              return { visible: Math.round(((innerHeight - q.top) / innerHeight) * 100), tocada: s.classList.contains("armada") || !!s.querySelector(".cursores-seccion") };
             },
             [x.i, fr],
           );
-        const poco = await asomar(0.1);
+        const poco = await asomar(0.05);
         await page.waitForTimeout(350);
         const tras = await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; return s.classList.contains("armada") || !!s.querySelector(".cursores-seccion"); }, x.i);
-        if (poco.tocada || tras) falla(`umbral ${en}`, `«${x.nombre}» se armó con solo ~${poco.visible} % a la vista (debe esperar ~30 %)`);
-        const bastante = await asomar(0.5);
+        if (poco.tocada || tras) falla(`umbral ${en}`, `«${x.nombre}» se armó con solo ~${poco.visible} % de la pantalla (debe esperar a que su borde superior entre ~10 %)`);
+        const bastante = await asomar(0.15);
         await page.waitForTimeout(250);
         const ya = await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; return s.classList.contains("armada") || !!s.querySelector(".cursores-seccion"); }, x.i);
-        if (!ya) falla(`umbral ${en}`, `«${x.nombre}» no se armó con ~${bastante.visible} % a la vista`);
+        if (!ya) falla(`umbral ${en}`, `«${x.nombre}» no se armó con ~${bastante.visible} % de la pantalla`);
         await cerrar(c, `consola umbral ${en}`);
       }
 
