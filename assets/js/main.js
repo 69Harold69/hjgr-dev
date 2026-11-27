@@ -558,6 +558,8 @@ function secciones() {
     const tiene = [false, false, false]; // el cursor n tiene un lugar en la cola global
     const ocupado = [false, false, false]; // el cursor n está en un paso (o en su pausa)
     const saliendo = [false, false, false];
+    const saleEl = [null, null, null]; // cursor que se está desvaneciendo (y su animación), por si el scroll lo deja en el borde
+    const saleAn = [null, null, null];
     const gracia = [0, 0, 0]; // temporizador: un cursor sin pieza a la vista espera un momento antes de irse (si llega otra, sigue sin salir y volver a entrar)
     let hecho = false;
     let cerrando = false;
@@ -672,7 +674,8 @@ function secciones() {
         const [, x0, y0] = st.ruta[0];
         if (!k) {
           const q = s.getBoundingClientRect();
-          k = crear(st.n, Math.min(Math.max(x0 + 60, 8), innerWidth - q.left - 40), y0 + (q.top + y0 - 40 >= BARRA ? -40 : 40));
+          const yIni = y0 + (q.top + y0 - 40 >= BARRA ? -40 : 40);
+          k = crear(st.n, Math.min(Math.max(x0 + 60, 8), innerWidth - q.left - 40), Math.min(Math.max(yIni, BARRA - 8 - q.top), innerHeight - 24 - q.top)); // nunca nace pegado a un borde ni detrás de la barra
         }
         const D = viajeK + durK;
         const pts = [[0, k.x, k.y]];
@@ -742,7 +745,8 @@ function secciones() {
         if (!k) return;
         cur[n] = null;
         saliendo[n] = true;
-        anim(k.c.el, { opacity: [1, 0] }, { duration: rapido ? 1 : SALIDA, fill: "forwards" });
+        saleEl[n] = k.c.el;
+        saleAn[n] = anim(k.c.el, { opacity: [1, 0] }, { duration: rapido ? 1 : SALIDA, fill: "forwards" });
         relojes.add(
           setTimeout(() => {
             k.c.el.remove();
@@ -851,8 +855,13 @@ function secciones() {
       };
       // Un cursor ocioso que quedó fuera de la pantalla (el lector siguió bajando) se va.
       sesion.limpiar = () => {
-        if (hecho || cerrando) return;
+        if (hecho) return;
         for (let n = 0; n < 3; n++) {
+          if (saliendo[n] && saleEl[n]) {
+            const q = saleEl[n].getBoundingClientRect();
+            if (!(q.top > BARRA - 14 && q.top < innerHeight - 12)) saleAn[n].finish(); // se desvanecía y el scroll lo dejó en el borde: se va ya
+          }
+          if (cerrando) continue;
           if (tiene[n] && ocupado[n] && cur[n]) {
             const st = pasos.find((x) => x.n === n && x.estado === "corre");
             const q = cur[n].c.el.getBoundingClientRect();
