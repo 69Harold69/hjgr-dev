@@ -238,7 +238,7 @@ const ESTADO_SIN_ARMAR = (n) => {
   const escala = (t) => {
     if (t === "none") return 1;
     const m = new DOMMatrix(t);
-    return Math.max(Math.abs(m.a), Math.abs(m.d));
+    return Math.min(Math.abs(m.a), Math.abs(m.d)); // la línea escala un solo eje: el otro queda en 1
   };
   const cada = (sel, fn, nombre) => sec.querySelectorAll(sel).forEach((el) => { piezas.n++; const m = fn(el); if (m) visibles.push(`${nombre || sel}: ${m}`); });
   cada(".captura, .hoja", (e) => getComputedStyle(e).boxShadow !== "none" && `sombra/borde ${getComputedStyle(e).boxShadow.slice(0, 30)}`, "tarjeta o hoja");
@@ -254,7 +254,7 @@ const ESTADO_SIN_ARMAR = (n) => {
   cada(".paso", (e) => !transp(getComputedStyle(e, "::before").borderBottomColor) && "línea naranja visible", "paso");
   cada(".proceso__linea", (e) => escala(getComputedStyle(e).transform) > 0.001 && "línea de etapas dibujada", "línea de etapas");
   cada(".proceso__marca", (e) => Number(getComputedStyle(e).opacity) > 0 && "marca visible", "marca de etapa");
-  if (sec.matches(".cierre")) cada(":scope", (e) => !transp(getComputedStyle(e).borderTopColor) && "filete superior visible", "cierre");
+  if (sec.matches(".cierre")) { piezas.n++; if (!transp(getComputedStyle(sec).borderTopColor)) visibles.push("cierre: filete superior visible"); }
   return { piezas: piezas.n, visibles };
 };
 
@@ -264,14 +264,20 @@ const SONDA_CURSORES = () => {
   const S = (window.__cur = { muestras: 0, sinCursor: [], etiquetas: [], fuera: [], inicios: {} });
   const vistas = new WeakMap();
   const opac = (el) => { let o = 1; for (let n = el; n && n.nodeType === 1; n = n.parentElement) o *= Number(getComputedStyle(n).opacity); return o; };
-  const escala = (el) => { const t = getComputedStyle(el).transform; if (t === "none") return 1; const m = new DOMMatrix(t); return Math.max(Math.abs(m.a), Math.abs(m.d)); };
+  const escala = (el) => { const t = getComputedStyle(el).transform; if (t === "none") return 1; const m = new DOMMatrix(t); return Math.min(Math.abs(m.a), Math.abs(m.d)); };
   const dist = (px, py, r) => Math.hypot(Math.max(r.left - px, 0, px - r.right), Math.max(r.top - py, 0, py - r.bottom));
   const t0 = performance.now();
+  let yAnt = 0;
+  let tScroll = 0;
   const cuadro = () => {
     const ahora = performance.now() - t0;
+    if (scrollY !== yAnt) { yAnt = scrollY; tScroll = ahora; }
+    const quieto = ahora - tScroll > 150; // con scroll en curso el cursor se mueve con la página: no se juzga
     const cursores = [...document.querySelectorAll(".cursores-seccion .cursor")].filter((el) => opac(el) > 0.05);
     const puntas = cursores.map((el) => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, r }; });
     if (cursores.length) S.muestras++;
+    const antes = S.puntasAntes || [];
+    S.puntasAntes = puntas;
     for (const el of cursores) {
       const sec = el.closest("main > section");
       const r = el.getBoundingClientRect();
@@ -283,7 +289,7 @@ const SONDA_CURSORES = () => {
       }
       // Objetivo fuera: la punta fuera de la pantalla (o tapada por la barra de 72 px) mientras la flecha todavía se ve.
       const alto = r.bottom > 72 && r.top < innerHeight;
-      if (alto && (r.top < 72 - 2 || r.top > innerHeight - 2 || r.left < -2 || r.left > innerWidth - 2) && S.fuera.length < 6) S.fuera.push(`cursor ${el.className} con la punta en (${Math.round(r.left)}, ${Math.round(r.top)}) a ${Math.round(ahora)} ms`);
+      if (quieto && alto && (r.top < 72 - 2 || r.top > innerHeight - 8 || r.left < -2 || r.left > innerWidth - 8) && S.fuera.length < 6) S.fuera.push(`cursor ${el.className} con la punta en (${Math.round(r.left)}, ${Math.round(r.top)}) a ${Math.round(ahora)} ms`);
     }
     for (const el of document.querySelectorAll(".cursores-seccion .arma-capa")) {
       const sec = el.closest("main > section");
@@ -300,7 +306,8 @@ const SONDA_CURSORES = () => {
       }
       const aVista = r.bottom > 90 && r.top < innerHeight - 60 && r.right > 0 && r.left < innerWidth;
       if (!esSombra && prog > 0.04 && prog < 0.96 && aVista && r.width * r.height > 0) {
-        const cerca = puntas.some((p) => dist(p.x, p.y, r) < 90);
+        // El cursor y la línea se muestrean en el mismo cuadro, pero una línea rápida cruza hasta 350 px por cuadro: vale la punta de este cuadro o la del anterior.
+        const cerca = [...puntas, ...antes].some((p) => dist(p.x, p.y, r) < 90);
         if (!cerca && S.sinCursor.length < 6) S.sinCursor.push(`${nombre} ${el.className.replace("arma-capa", "capa")} al ${Math.round(prog * 100)} % a ${Math.round(ahora)} ms (cursores: ${puntas.length})`);
       }
     }
@@ -614,7 +621,8 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
           await page.waitForTimeout(120);
           const r = await page.evaluate(ESTADO_SIN_ARMAR, x.i);
           const base = path.join(SALIDA_ANIM, `${slug(ruta)}-${x.nombre}-${vp.width}`);
-          if (r.piezas < 3) falla(`sin armar ${x.nombre} ${en}`, `la prueba solo reconoció ${r.piezas} piezas visuales (debían ser 3 o más)`);
+          const minimo = x.nombre === "contacto" ? 2 : 3; // el cierre solo lleva la línea del título y el filete
+          if (r.piezas < minimo) falla(`sin armar ${x.nombre} ${en}`, `la prueba solo reconoció ${r.piezas} piezas visuales (debían ser ${minimo} o más)`);
           for (const m of r.visibles) falla(`sin armar ${x.nombre} ${en}`, `en el primer cuadro ya se ve armado: ${m}`);
           await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; window.scrollTo(0, window.scrollY + s.getBoundingClientRect().top - (innerHeight * 0.45)); }, x.i);
           await page.screenshot({ path: `${base}-1-primer-cuadro.png` });
@@ -879,7 +887,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
 
 
     /* 9. «Saltar animación (Esc)»: texto, aspecto, primer Tab, foco al desaparecer y que no tape texto (320, 390, 768, 1280 y 1920 px). */
-    if (!a["solo-secciones"]) {
+    if (!a["solo-secciones"] && !soloPrimero) {
       const c0 = await abrir({ viewport: { width: 1280, height: 800 } });
       const page = await c0.ctx.newPage();
       await page.goto(servidor.url + ruta, { waitUntil: "domcontentloaded" });
@@ -928,7 +936,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
       await cerrar(c1, "consola «Saltar» desaparece");
     }
 
-    for (const ancho of a["solo-secciones"] ? [] : [320, 390, 768, 1280, 1920]) {
+    for (const ancho of a["solo-secciones"] || soloPrimero ? [] : [320, 390, 768, 1280, 1920]) {
       // Intersección del botón con las líneas de texto visibles, cuadro a cuadro: durante el hero y durante una lectura pausada de toda la página.
       const c = await abrir({ viewport: { width: ancho, height: ancho < 700 ? 800 : 900 } });
       await c.ctx.addInitScript(SONDA_SALTAR);

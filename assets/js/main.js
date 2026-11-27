@@ -289,7 +289,7 @@ const TOPE = 1400; // ms por sección en escritorio (el encargo fija 1500, con l
 const TOPE_CEL = 940; // ms en celular (el encargo fija 1000)
 const BARRA = 88; // px: la barra fija (72) y el aire que las anclas le dejan (scroll-padding-top): lo que queda detrás de ella cuenta como «atrás»
 const DISPARO = 0.9; // la sección arranca cuando su borde superior ya entró ~10 % de la altura de la pantalla
-const viaje = (d) => Math.min(130, Math.max(45, d * 0.45)); // ms que tarda un cursor en llegar al inicio del siguiente paso, según la distancia
+const viaje = (d) => Math.min(130, Math.max(35, d * 0.45)); // ms que tarda un cursor en llegar al inicio del siguiente paso, según la distancia
 
 const paso = (c, t, dur, ruta, partes) => ({ c, t, dur, ruta, partes });
 const linea = (c, host, pseudo, t, dur, x0, x1, y, eje = "scaleX") => paso(c, t, dur, [[0, x0, y], [dur, x1, y]], [{ host, pseudo, kf: { transform: [`${eje}(0)`, `${eje}(1)`] } }]);
@@ -415,7 +415,7 @@ const PLANES = [
       lineas.forEach(([y, clase], i) => {
         const atras = i % 2 === 1;
         const host = h.capa(`${clase} ${atras ? "arma-capa--der" : ""}`.trim(), tq.l, y, tq.w, 1);
-        v.push(paso(0, 0, 140, atras ? [[0, tq.r, y], [140, tq.l, y]] : [[0, tq.l, y], [140, tq.r, y]], [{ host, kf: { transform: ["scaleX(0)", "scaleX(1)"] } }]));
+        v.push(paso(0, 0, 70, atras ? [[0, tq.r, y], [70, tq.l, y]] : [[0, tq.l, y], [70, tq.r, y]], [{ host, kf: { transform: ["scaleX(0)", "scaleX(1)"] } }]));
       });
       const fila = s.querySelector(".tabla__destacada");
       const f = h.r(fila);
@@ -578,8 +578,8 @@ function secciones() {
         return a;
       };
       const CANDIDATAS = (w, hg) => [[0, 0], [-(w + 19), 0], [0, -(hg + 26)], [-(w + 19), -(hg + 26)], [0, 38], [-(w + 19), 38]];
-      // La etiqueta no pasa sobre un título (con 6 px de aire) ni se sale de la pantalla por los lados.
-      const choca = (l, t, w, hg) => caja.left + l < 4 || caja.left + l + w > innerWidth - 4 || titulos.some((q) => l < q.r + 6 && l + w > q.l - 6 && t < q.b + 6 && t + hg > q.t - 6);
+      // La etiqueta no pasa sobre un título (con 16 px de aire) ni se sale de la pantalla por los lados.
+      const choca = (l, t, w, hg) => caja.left + l < 4 || caja.left + l + w > innerWidth - 4 || titulos.some((q) => l < q.r + 16 && l + w > q.l - 16 && t < q.b + 16 && t + hg > q.t - 16);
       function crear(n, x, y) {
         const c = crearCursor(ROLES[n]);
         capa.append(c.el);
@@ -608,7 +608,10 @@ function secciones() {
         }
         const D = viajeK + durK;
         const pts = [[0, k.x, k.y]];
-        st.ruta.forEach(([dt, x, y], i) => pts.push([viajeK + (i === 0 ? 0 : dt * kk), x, y]));
+        // La punta nunca se pega al borde de la pantalla (la línea sí llega hasta el final): se queda a 22 px.
+        const qx = s.getBoundingClientRect().left;
+        const enX = (x) => Math.min(Math.max(x, 10 - qx), innerWidth - 22 - qx);
+        st.ruta.forEach(([dt, x, y], i) => pts.push([viajeK + (i === 0 ? 0 : dt * kk), enX(x), y]));
         const ult = pts[pts.length - 1];
         if (ult[0] < D) pts.push([D, ult[1], ult[2]]);
         anim(k.c.el, pts.map(([t, x, y]) => ({ transform: `translate(${Math.round(x)}px, ${Math.round(y)}px)`, offset: Math.min(1, t / D) })), { duration: D, fill: "forwards" });
@@ -616,10 +619,10 @@ function secciones() {
           k.nuevo = false;
           anim(k.c.el, { opacity: [0, 1] }, { duration: Math.min(90, D), fill: "both" });
         }
-        // Etiqueta: cambia de lado (o se oculta) en saltos para no pasar sobre un título; se decide por muestras cada ~30 ms.
+        // Etiqueta: cambia de lado (o se oculta) en saltos para no pasar sobre un título; se decide por muestras cada ~10 ms.
         const cand = CANDIDATAS(k.w, k.hg);
         const marcos = [];
-        const nm = Math.max(1, Math.round(D / 30));
+        const nm = Math.max(1, Math.ceil(D / 10));
         const en = (t) => {
           for (let i = 1; i < pts.length; i++) {
             if (t <= pts[i][0] || i === pts.length - 1) {
@@ -696,7 +699,7 @@ function secciones() {
           aparte.length = 0;
           quedan.forEach((st) => hacer(st, Math.max(0.05, Math.min(K, (LIM - ahora()) / st.dur)), false, 0));
           cerrar();
-        }, LIM - 220),
+        }, LIM - 70),
       );
     } catch (e) {
       terminar();
