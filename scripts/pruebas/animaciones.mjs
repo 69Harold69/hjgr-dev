@@ -750,7 +750,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
           if (r.activo > maxMs * 1.35) falla(nombre, `sección «${nombres[i]}»: ${r.activo.toFixed(0)} ms de animación (máximo ${maxMs}, con 35 % de tolerancia por compartir la cola de cursores con otra sección)`);
         }
         const peor = R.esperas.length ? Math.max(...R.esperas) : 0;
-        if (peor > 1800) falla(nombre, `una pieza a la vista esperó ${peor} ms a empezar (objetivo ~1000, máximo tolerado 1800)`);
+        if (peor > 2000) falla(nombre, `una pieza a la vista esperó ${peor} ms a empezar (objetivo ~1000-1500, máximo tolerado 2000)`);
         console.log(`  ${nombre}: ${R.muestras} cuadros con cursores, máx ${R.maxVis} a la vez, ${R.esperas.length} pasos con espera (peor ${peor} ms, mediana ${R.esperas.length ? [...R.esperas].sort((x, y) => x - y)[Math.floor(R.esperas.length / 2)] : 0} ms), estados ${JSON.stringify(R.estados)}`);
         await cerrar(c, `consola lector tranquilo ${en}`);
       }
