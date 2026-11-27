@@ -686,6 +686,24 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         await cerrar(c, `consola sincronía ${en}`);
       }
 
+      /* 8l. Lector que se detiene justo al cruzar el umbral (borde superior ~12 % adentro) y no se mueve: ningún cursor puede salir con su
+             objetivo fuera de la pantalla (en 8k el scroll sigue subiendo y lo esconde). */
+      {
+        const c = await abrir({ viewport: vp });
+        await c.ctx.addInitScript(SONDA_CURSORES);
+        const page = await c.ctx.newPage();
+        await page.goto(servidor.url + ruta, { waitUntil: "load" });
+        await sinAnimacion(page);
+        const lista = (await secciones(page)).filter((x) => !x.tinta);
+        for (const x of lista) {
+          await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; window.scrollTo(0, window.scrollY + s.getBoundingClientRect().top - innerHeight * 0.88); }, x.i);
+          await page.waitForTimeout(chico ? 1200 : 1600);
+        }
+        const R = await page.evaluate(() => window.__cur);
+        for (const m of R.fuera) falla(`cursor con objetivo fuera de la pantalla (lector quieto) ${en}`, m);
+        await cerrar(c, `consola lector quieto ${en}`);
+      }
+
       if (soloPrimero) continue;
 
       /* 8a. Lectura normal: sección por sección. */
