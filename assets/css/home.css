@@ -403,6 +403,11 @@
     flex-direction: column;
     height: 100%;
   }
+  /* Borde de las tarjetas y hojas de las secciones: un anillo de 1 px en box-shadow (fuera de la caja, sin tocar el layout), junto a la sombra de siempre. */
+  main > section:not(.hero) .captura,
+  main > section:not(.hero) .hoja {
+    box-shadow: var(--shadow-sheet), 0 0 0 1px var(--rule);
+  }
   .captura__marco {
     overflow: clip; /* recorta el zoom dentro del marco; nunca overflow:hidden */
     border-radius: var(--radius) var(--radius) 0 0;
@@ -874,6 +879,27 @@
       position: relative;
     }
 
+    /* Capas del armado (las crea main.js dentro de .cursores-seccion y las quita al terminar): líneas de 1 px, sombras y bordes de tarjetas. */
+    .arma-capa {
+      position: absolute;
+      pointer-events: none;
+      background-color: var(--rule);
+      transform: scaleX(0);
+      transform-origin: left center;
+    }
+    .arma-capa--ink { background-color: var(--ink); }
+    .arma-capa--accent { background-color: var(--accent); }
+    .arma-capa--v { transform: scaleY(0); transform-origin: center top; }
+    .arma-capa--der { transform-origin: right center; }
+    .arma-capa--abajo { transform-origin: center bottom; }
+    .arma-capa--sombra {
+      background: none;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sheet);
+      transform: none;
+      opacity: 0;
+    }
+
     /* 3. Problemas */
     .js-secciones main > section:not(.armada) .problemas { border-top-color: transparent; }
     .js-secciones main > section:not(.armada) .problemas::before { top: -1px; background-color: var(--ink); }
@@ -893,8 +919,17 @@
 
     /* 6. Trabajo: marcas de corte y capturas dentro de su marco (sus medidas ya están reservadas) */
     .js-secciones main > section:not(.armada) .trabajo .marcas__esq,
-    .js-secciones main > section:not(.armada) .foto .marcas__esq,
-    .js-secciones main > section:not(.armada) .captura__img { opacity: 0; }
+    .js-secciones main > section:not(.armada) .foto .marcas__esq { opacity: 0; }
+    /* La captura se revela con un clip-path en diagonal que sigue al cursor (de arriba a la izquierda a abajo a la derecha). */
+    .js-secciones main > section:not(.armada) .captura__img { clip-path: polygon(0 0, 0 0, 0 0); }
+    /* Tarjetas y hojas: sin sombra ni borde (el borde es un anillo de 1 px en box-shadow, fuera de la caja: sin layout). El fondo se queda:
+       el texto conserva su contraste. Borde y sombra los ponen capas del JS (.arma-*) y vuelven los reales al armarse. */
+    .js-secciones main > section:not(.armada) .captura,
+    .js-secciones main > section:not(.armada) .hoja { box-shadow: none; }
+    /* Precios: borde de arriba y líneas de las filas (las dibuja un cursor con capas del JS) */
+    .js-secciones main > section:not(.armada) .tabla { border-top-color: transparent; }
+    .js-secciones main > section:not(.armada) .tabla th,
+    .js-secciones main > section:not(.armada) .tabla td { border-bottom-color: transparent; }
     .js-secciones main > section:not(.armada) .captura__cuerpo { border-top-color: transparent; }
     .js-secciones main > section:not(.armada) .captura__cuerpo::before { top: -1px; background-color: var(--rule); }
 
@@ -922,7 +957,7 @@
       position: absolute;
       z-index: -1;
       background-color: var(--paper-2);
-      opacity: 0;
+      clip-path: inset(0 100% 0 0);
       pointer-events: none;
     }
     .js-secciones main > section:not(.armada) .tabla__destacada th::after,
@@ -983,6 +1018,7 @@
     .foto .marcas__esq {
       opacity: 1 !important;
       transform: none !important;
+      clip-path: none !important;
     }
     .entrada,
     .entrada__saltar,

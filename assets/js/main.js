@@ -277,122 +277,183 @@ function abandonar() {
 }
 
 /* ---------------------------------------------------------------------------------------------
-   2. Secciones: las arman los cursores al entrar en pantalla (#31)
-   --------------------------------------------------------------------------------------------- */
-const OFF = 150; // ms: lo que tardan los cursores en llegar al primer punto
-const FIN_VISUAL = 1100; // ms: todo lo visual termina antes de esto
-const TOTAL_SECCION = 1300; // ms: máximo por sección (el encargo fija 1500); en celular se escala por CORTO
-const CORTO = 0.7;
+   2. Secciones: las arman los cursores al entrar en pantalla (#31, #35)
+   ---------------------------------------------------------------------------------------------
+   Una sola definición de PASOS por sección. Cada paso dice: qué cursor lo hace (c), cuándo puede empezar (t), cuánto dura (dur), el
+   recorrido del cursor (ruta: [ms desde el inicio del paso, x, y]) y las piezas que aparecen mientras tanto (partes: dt y dur dentro del paso).
+   De ahí salen, con los MISMOS tiempos y el mismo easing lineal, tanto el recorrido del cursor como la animación de cada pieza:
+   la línea crece justo donde va la punta; la marca se pega cuando el cursor llega a la esquina. Nada se anima por separado. */
+const OFF = 120; // ms: lo que tarda el primer cursor en llegar
+const SALIDA = 160; // ms: el cursor se desvanece al final
+const TOPE = 1400; // ms por sección en escritorio (el encargo fija 1500, con la salida del cursor incluida)
+const TOPE_CEL = 940; // ms en celular (el encargo fija 1000)
 const BARRA = 88; // px: la barra fija (72) y el aire que las anclas le dejan (scroll-padding-top): lo que queda detrás de ella cuenta como «atrás»
+const DISPARO = 0.9; // la sección arranca cuando su borde superior ya entró ~10 % de la altura de la pantalla
+const viaje = (d) => Math.min(130, Math.max(45, d * 0.45)); // ms que tarda un cursor en llegar al inicio del siguiente paso, según la distancia
 
-/* Cada plan devuelve los «visuales» de su sección: { c (cursor 0 a 2, o -1 si no lleva), host, pseudo, kf, t, dur, ruta }.
-   Las posiciones son relativas a la sección; ruta = [[ms desde el inicio del visual, x, y], ...]. */
-const linea = (c, host, pseudo, t, dur, x0, x1, y, eje = "scaleX") => ({ c, host, pseudo, kf: { transform: [`${eje}(0)`, `${eje}(1)`] }, t, dur, ruta: [[0, x0, y], [dur, x1, y]] });
-const aparece = (c, host, pseudo, t, dur, x, y) => ({ c, host, pseudo, kf: { opacity: [0, 1] }, t, dur, ruta: [[0, x, y]] });
+const paso = (c, t, dur, ruta, partes) => ({ c, t, dur, ruta, partes });
+const linea = (c, host, pseudo, t, dur, x0, x1, y, eje = "scaleX") => paso(c, t, dur, [[0, x0, y], [dur, x1, y]], [{ host, pseudo, kf: { transform: [`${eje}(0)`, `${eje}(1)`] } }]);
+
+/* Tarjeta u hoja de una sola pasada: el cursor recorre el borde (cuatro lados, cada uno se dibuja detrás de la punta), después aparece la sombra
+   (capa con opacidad) y, si la tarjeta lleva marcas de corte, el cursor pasa por cada esquina y la marca se pega ahí. */
+function tarjeta(h, c, t, el, marcas = []) {
+  const q = h.r(el);
+  const T = 85; // ms por lado
+  const S = 110; // ms de la sombra
+  const M = 70; // ms por marca
+  const lado = (clase, l, tp, w, hg, kf, dt) => ({ host: h.capa(clase, l, tp, w, hg), kf, dt, dur: T });
+  const partes = [
+    lado("", q.l - 1, q.t - 1, q.w + 2, 1, { transform: ["scaleX(0)", "scaleX(1)"] }, 0),
+    lado("arma-capa--v", q.r, q.t - 1, 1, q.h + 2, { transform: ["scaleY(0)", "scaleY(1)"] }, T),
+    lado("arma-capa--der", q.l - 1, q.b, q.w + 2, 1, { transform: ["scaleX(0)", "scaleX(1)"] }, 2 * T),
+    lado("arma-capa--v arma-capa--abajo", q.l - 1, q.t - 1, 1, q.h + 2, { transform: ["scaleY(0)", "scaleY(1)"] }, 3 * T),
+  ];
+  const ruta = [[0, q.l, q.t], [T, q.r, q.t], [2 * T, q.r, q.b], [3 * T, q.l, q.b], [4 * T, q.l, q.t]];
+  partes.push({ host: h.capa("arma-capa--sombra", q.l, q.t, q.w, q.h), kf: { opacity: [0, 1] }, dt: 4 * T, dur: S });
+  let fin = 4 * T + S;
+  if (marcas.length) {
+    const sitios = [[q.l, q.t], [q.r, q.t], [q.l, q.b], [q.r, q.b]]; // nw, ne, sw, se (el orden del HTML)
+    [0, 1, 3, 2].forEach((k) => {
+      const [x, y] = sitios[k];
+      ruta.push([fin, x, y]);
+      partes.push({ host: marcas[k], kf: { opacity: [0, 1], transform: ["scale(2.2)", "scale(1)"] }, dt: fin, dur: M * 0.8 });
+      fin += M;
+    });
+    ruta.push([fin, q.l, q.t]);
+  } else ruta.push([fin, q.l, q.t]);
+  return paso(c, t, fin, ruta, partes);
+}
 
 const PLANES = [
   {
     // 3. Problemas: el filete de arriba y la línea bajo cada problema
     busca: ".problemas",
-    plan(s, r) {
+    plan(s, h) {
       const ol = s.querySelector(".problemas");
-      const o = r(ol);
-      const v = [linea(0, ol, "::before", 0, 450, o.l, o.r, o.t)];
+      const o = h.r(ol);
+      const v = [linea(0, ol, "::before", 0, 420, o.l, o.r, o.t)];
       [...ol.querySelectorAll(".problemas__fila")].forEach((f, i) => {
-        const q = r(f);
-        v.push(linea(1 + (i % 2), f, "::after", 250 + i * 200, 400, q.l, q.r, q.b));
+        const q = h.r(f);
+        v.push(linea(1 + (i % 2), f, "::after", 60 + i * 60, 330, q.l, q.r, q.b));
       });
       return v;
     },
   },
   {
-    // 4. Sistemas: la línea de las seis etapas con sus marcas (antes era un mecanismo aparte) y las filas
+    // 4. Sistemas: la línea de las seis etapas con sus marcas y las filas
     busca: ".proceso",
-    plan(s, r) {
+    plan(s, h) {
       const proceso = s.querySelector(".proceso");
       const raya = proceso.querySelector(".proceso__linea");
       const marcas = [...proceso.querySelectorAll(".proceso__marca")];
       const horizontal = matchMedia("(min-width: 768px)").matches; // de 768 px en adelante la línea es horizontal
       const eje = horizontal ? "scaleX" : "scaleY";
-      const m = marcas.map(r);
+      const m = marcas.map(h.r);
       const pos = (q) => (horizontal ? q.cx : q.cy);
       const largo = Math.max(1, pos(m[m.length - 1]) - pos(m[0]));
       const dur = 800;
       const fr = m.map((q) => Math.min(1, Math.max(0, (pos(q) - pos(m[0])) / largo)));
-      const v = [{ c: 0, host: raya, kf: { transform: [`${eje}(0)`, `${eje}(1)`] }, t: 0, dur, easing: "linear", ruta: m.map((q, i) => [fr[i] * dur, q.cx, q.cy]) }];
-      marcas.forEach((el, i) => v.push({ c: -1, host: el, kf: { opacity: [0, 1] }, t: fr[i] * dur, dur: 220, easing: "ease-out" }));
+      const partes = [{ host: raya, kf: { transform: [`${eje}(0)`, `${eje}(1)`] } }];
+      marcas.forEach((el, i) => partes.push({ host: el, kf: { opacity: [0, 1] }, dt: fr[i] * dur, dur: 200 }));
+      const v = [paso(0, 0, dur, m.map((q, i) => [fr[i] * dur, q.cx, q.cy]), partes)];
       const filas = [...s.querySelectorAll(".fila")];
       filas.forEach((f, i) => {
-        const q = r(f);
-        v.push(linea(1 + (i % 2), f, "::before", 250 + i * 90, 280, q.l, q.r, q.t));
-        if (i === filas.length - 1) v.push(linea(1 + (i % 2), f, "::after", 250 + i * 90 + 100, 280, q.l, q.r, q.b));
+        const q = h.r(f);
+        v.push(linea(1 + (i % 2), f, "::before", 60 + i * 70, 260, q.l, q.r, q.t));
+        if (i === filas.length - 1) v.push(linea(1 + (i % 2), f, "::after", 60 + i * 70 + 90, 260, q.l, q.r, q.b));
       });
       return v;
     },
   },
   {
-    // 6. Trabajo: marcas de corte, filete de cada tarjeta y la captura dentro de su marco
+    // 6. Trabajo: cada tarjeta (borde, sombra y marcas de corte con su cursor) y su captura revelada en diagonal
     busca: ".trabajo",
-    plan(s, r) {
+    plan(s, h) {
       const v = [];
       [...s.querySelectorAll(".trabajo")].forEach((card, i) => {
-        const b = i * 260;
-        const q = r(card);
-        const sitios = [[q.l, q.t], [q.r, q.t], [q.l, q.b], [q.r, q.b]]; // nw, ne, sw, se (el orden del HTML)
-        [0, 1, 3, 2].forEach((k, n) => v.push(aparece(0, card.querySelectorAll(".marcas__esq")[k], null, b + n * 60, 150, sitios[k][0], sitios[k][1])));
-        const marco = r(card.querySelector(".captura__marco"));
-        v.push({ c: 1, host: card.querySelector(".captura__img"), kf: { opacity: [0, 1], transform: ["scale(1.04)", "scale(1)"] }, t: b + 200, dur: 450, ruta: [[0, marco.cx, marco.cy]] });
-        const cuerpo = card.querySelector(".captura__cuerpo");
-        const c = r(cuerpo);
-        v.push(linea(2, cuerpo, "::before", b + 300, 330, c.l, c.r, c.t));
+        v.push(tarjeta(h, i % 2, 0, card, [...card.querySelectorAll(".marcas__esq")]));
+        const img = card.querySelector(".captura__img");
+        const marco = h.r(card.querySelector(".captura__marco"));
+        // Frente en diagonal: la punta recorre la diagonal del marco y el clip-path (un triángulo que crece) la sigue.
+        v.push(paso(2, i * 20, 300, [[0, marco.l, marco.t], [300, marco.r, marco.b]], [{ host: img, kf: { clipPath: ["polygon(0 0, 0 0, 0 0)", "polygon(0 0, 200% 0, 0 200%)"] } }]));
+      });
+      [...s.querySelectorAll(".trabajo .captura__cuerpo")].forEach((cuerpo, i) => {
+        const c = h.r(cuerpo);
+        v.push(linea(2, cuerpo, "::before", 60 + i * 20, 160, c.l, c.r, c.t));
       });
       return v;
     },
   },
   {
-    // 7. Cómo trabajo: la línea naranja bajo cada número
+    // 7. Cómo trabajo: borde y sombra de cada hoja, y la línea naranja bajo cada número
     busca: ".pasos",
-    plan(s, r) {
-      return [...s.querySelectorAll(".paso")].map((p, i) => {
-        const q = r(p);
+    plan(s, h) {
+      const v = [];
+      [...s.querySelectorAll(".paso")].forEach((p, i) => {
+        v.push(tarjeta(h, i % 2, 0, p));
+        const q = h.r(p);
         const cs = getComputedStyle(p);
         const y = q.t + parseFloat(cs.paddingTop) + parseFloat(getComputedStyle(p, "::before").height) + parseFloat(getComputedStyle(p, "::before").paddingBottom);
-        return linea(i % 2, p, "::after", i * 180, 380, q.l + parseFloat(cs.paddingLeft), q.r - parseFloat(cs.paddingRight), y);
+        v.push(linea(2, p, "::after", 40 + i * 20, 200, q.l + parseFloat(cs.paddingLeft), q.r - parseFloat(cs.paddingRight), y));
       });
+      return v;
     },
   },
   {
-    // 8. Precios: el resaltado de la fila del diagnóstico
+    // 8. Precios: un cursor traza las líneas de la tabla de arriba abajo; otro barre el resaltado del diagnóstico
     busca: ".tabla__destacada",
-    plan(s, r) {
-      const fila = s.querySelector(".tabla__destacada");
-      if (matchMedia("(max-width: 639.98px)").matches) {
-        const q = r(fila);
-        return [aparece(0, fila, "::before", 250, 300, q.l + q.w * 0.25, q.cy), aparece(1, fila, "::after", 390, 300, q.l + q.w * 0.75, q.cy)];
-      }
-      return [...fila.children].map((celda, j) => {
-        const q = r(celda);
-        return aparece(j < 2 ? 0 : 1, celda, "::after", 250 + j * 140, 260, q.cx, q.cy);
+    plan(s, h) {
+      const v = [];
+      const tabla = s.querySelector(".tabla");
+      const tq = h.r(tabla);
+      const lineas = [[tq.t, "arma-capa--ink"]];
+      [...tabla.querySelectorAll("tr")].forEach((tr) => {
+        const q = h.r(tr);
+        if (q.h > 0) lineas.push([q.b - 1, ""]);
       });
+      // Serpentina: una línea de izquierda a derecha y la siguiente de derecha a izquierda; el cursor casi no viaja.
+      lineas.forEach(([y, clase], i) => {
+        const atras = i % 2 === 1;
+        const host = h.capa(`${clase} ${atras ? "arma-capa--der" : ""}`.trim(), tq.l, y, tq.w, 1);
+        v.push(paso(0, 0, 140, atras ? [[0, tq.r, y], [140, tq.l, y]] : [[0, tq.l, y], [140, tq.r, y]], [{ host, kf: { transform: ["scaleX(0)", "scaleX(1)"] } }]));
+      });
+      const fila = s.querySelector(".tabla__destacada");
+      const f = h.r(fila);
+      const dur = 420;
+      if (matchMedia("(max-width: 639.98px)").matches) {
+        v.push(paso(1, 0, dur, [[0, f.l, f.cy], [dur, f.r, f.cy]], [
+          { host: fila, pseudo: "::before", kf: { clipPath: ["inset(0 100% 0 0)", "inset(0 0 0 0)"] }, dt: 0, dur: dur / 2 },
+          { host: fila, pseudo: "::after", kf: { clipPath: ["inset(0 100% 0 0)", "inset(0 0 0 0)"] }, dt: dur / 2, dur: dur / 2 },
+        ]));
+      } else {
+        const partes = [...fila.children].map((celda) => {
+          const q = h.r(celda);
+          return { host: celda, pseudo: "::after", kf: { clipPath: ["inset(0 100% 0 0)", "inset(0 0 0 0)"] }, dt: ((q.l - f.l) / f.w) * dur, dur: (q.w / f.w) * dur };
+        });
+        v.push(paso(1, 0, dur, [[0, f.l, f.cy], [dur, f.r, f.cy]], partes));
+      }
+      return v;
     },
   },
   {
     // 9. Quién: marcas de corte de la foto y líneas de las preguntas
     busca: ".faq",
-    plan(s, r) {
+    plan(s, h) {
       const v = [];
       const foto = s.querySelector(".foto");
       if (foto) {
-        const q = r(foto);
-        const sitios = [[q.l, q.t], [q.r, q.t], [q.l, q.b], [q.r, q.b]]; // nw, ne, sw, se (el orden del HTML)
-        [0, 1, 3, 2].forEach((k, n) => v.push(aparece(0, foto.querySelectorAll(".marcas__esq")[k], null, n * 90, 150, sitios[k][0], sitios[k][1])));
+        const q = h.r(foto);
+        const esq = [...foto.querySelectorAll(".marcas__esq")];
+        const sitios = [[q.l, q.t], [q.r, q.t], [q.l, q.b], [q.r, q.b]];
+        const orden = [0, 1, 3, 2];
+        v.push(paso(0, 0, 70 * 4, orden.map((k, n) => [n * 70, sitios[k][0], sitios[k][1]]), orden.map((k, n) => ({ host: esq[k], kf: { opacity: [0, 1], transform: ["scale(2.2)", "scale(1)"] }, dt: n * 70, dur: 60 }))));
       }
       const faq = s.querySelector(".faq");
-      const f = r(faq);
-      v.push(linea(1, faq, "::before", 100, 400, f.l, f.r, f.t));
+      const f = h.r(faq);
+      v.push(linea(1, faq, "::before", 0, 380, f.l, f.r, f.t));
       [...faq.querySelectorAll(".faq__item")].forEach((it, i) => {
-        const q = r(it);
-        v.push(linea(1 + (i % 2), it, "::after", 250 + i * 90, 300, q.l, q.r, q.b));
+        const q = h.r(it);
+        v.push(linea(1 + (i % 2), it, "::after", 60 + i * 60, 280, q.l, q.r, q.b));
       });
       return v;
     },
@@ -400,11 +461,11 @@ const PLANES = [
   {
     // 10. Cierre: la línea naranja del título y el filete de arriba
     busca: ".cierre__titulo",
-    plan(s, r) {
+    plan(s, h) {
       const t = s.querySelector(".cierre__titulo");
-      const q = r(t);
-      const c = r(s);
-      return [linea(0, t, "::after", 0, 500, q.l, q.r, q.b), linea(1, s, "::before", 100, 600, c.l, c.r, c.t)];
+      const q = h.r(t);
+      const c = h.r(s);
+      return [linea(0, t, "::after", 0, 480, q.l, q.r, q.b), linea(1, s, "::before", 60, 560, c.l, c.r, c.t)];
     },
   },
 ];
@@ -412,7 +473,7 @@ const PLANES = [
 function secciones() {
   if (!html.classList.contains("js-secciones")) return;
   const chico = matchMedia("(max-width: 767.98px)").matches; // mismo corte que usa el sitio para las etapas
-  const k = chico ? CORTO : 1;
+  const tope = chico ? TOPE_CEL : TOPE;
   const lista = [];
   document.querySelectorAll("main > section:not(.hero)").forEach((s) => {
     const p = PLANES.find((x) => s.querySelector(x.busca) || s.matches(x.busca));
@@ -437,15 +498,15 @@ function secciones() {
     pendientes.delete(s);
     if (ojo) ojo.unobserve(s);
     const animaciones = [];
+    const relojes = new Set();
     const capa = document.createElement("div");
     capa.className = "cursores-seccion";
     capa.setAttribute("aria-hidden", "true");
     let hecho = false;
-    let reloj = 0;
     const terminar = () => {
       if (hecho) return;
       hecho = true;
-      clearTimeout(reloj);
+      relojes.forEach(clearTimeout);
       s.classList.add("armada");
       animaciones.forEach((a) => {
         try {
@@ -462,52 +523,181 @@ function secciones() {
     vivas.set(s, { terminar });
     try {
       const caja = s.getBoundingClientRect();
-      const r = (el) => {
-        const q = el.getBoundingClientRect();
-        return { l: q.left - caja.left, r: q.right - caja.left, t: q.top - caja.top, b: q.bottom - caja.top, w: q.width, h: q.height, cx: q.left - caja.left + q.width / 2, cy: q.top - caja.top + q.height / 2 };
+      const rel = (q) => ({ l: q.left - caja.left, r: q.right - caja.left, t: q.top - caja.top, b: q.bottom - caja.top, w: q.width, h: q.height, cx: q.left - caja.left + q.width / 2, cy: q.top - caja.top + q.height / 2 });
+      const h = {
+        r: (el) => rel(el.getBoundingClientRect()),
+        capa: (clase, l, t, w, hg) => {
+          const d = document.createElement("div");
+          d.className = `arma-capa ${clase}`.trim();
+          d.style.left = `${l}px`;
+          d.style.top = `${t}px`;
+          d.style.width = `${w}px`;
+          d.style.height = `${hg}px`;
+          capa.append(d);
+          return d;
+        },
       };
-      const visuales = p.plan(s, r);
-      const cursor = (c) => (chico ? c % 2 : c);
-      const total = TOTAL_SECCION * k;
-      const arriba = Math.max(0, 72 + 16 - caja.top); // la barra fija tapa los primeros píxeles
-      const abajo = Math.min(caja.height, innerHeight - caja.top - 56);
-      const enY = (y) => Math.min(Math.max(y, arriba), Math.max(arriba, abajo));
-      const enX = (x) => Math.min(Math.max(x, 8), Math.max(8, caja.width - 40));
+      s.append(capa);
+      const pasos = p.plan(s, h);
+      const cursor = (c) => (c < 0 ? -1 : chico ? c % 2 : c);
+      // Títulos de la sección: las etiquetas de los cursores no pasan por encima de ellos.
+      const titulos = [...s.querySelectorAll("h2, h3, .nombre")].map(h.r).filter((q) => q.w > 0 && q.h > 0);
+
+      // --- Ritmo base: si todos los pasos, en orden y con sus viajes, no caben en el tope, se comprimen parejo (K). ---
+      const fin0 = [null, null, null];
+      let maxFin = 0;
+      pasos.forEach((st) => {
+        st.n = cursor(st.c);
+        let ini = OFF + st.t;
+        if (st.n >= 0) {
+          const [, x0, y0] = st.ruta[0];
+          const ant = fin0[st.n];
+          ini = Math.max(ini, ant ? ant.t + viaje(Math.hypot(x0 - ant.x, y0 - ant.y)) : 90);
+          const u = st.ruta[st.ruta.length - 1];
+          fin0[st.n] = { t: ini + st.dur, x: u[1], y: u[2] };
+        }
+        maxFin = Math.max(maxFin, ini + st.dur);
+      });
+      const LIM = tope - SALIDA - 40; // ms: todo paso termina antes de esto
+      const K = Math.min(1, LIM / maxFin);
+      const T0 = performance.now();
+      const ahora = () => performance.now() - T0;
+
+      // --- Cursores (se crean con el primer paso que de verdad se ve) ---
+      const cur = [null, null, null];
+      // Un paso sale con cursor si su punto de partida ya está a la vista (con margen para que se vean la flecha y la etiqueta). Si más adelante el
+      // recorrido pasa de la pantalla, el cursor simplemente sale de ella siguiendo la pieza; nunca se pega al borde.
+      const dentro = (puntos) => {
+        const q = s.getBoundingClientRect();
+        const [, x, y] = puntos[0];
+        return q.top + y >= BARRA + 8 && q.top + y <= innerHeight - 60 && q.left + x >= 0 && q.left + x <= innerWidth - 24;
+      };
       const anim = (el, kf, op, pseudo) => {
-        const a = el.animate(kf, { fill: "both", easing: SUAVE, ...op, ...(pseudo ? { pseudoElement: pseudo } : {}) });
+        const a = el.animate(kf, { fill: "both", easing: "linear", ...op, ...(pseudo ? { pseudoElement: pseudo } : {}) });
         animaciones.push(a);
         return a;
       };
-      sesiones.add(s);
-      saltarMostrar();
-      s.append(capa);
-      visuales.forEach((v) => anim(v.host, v.kf, { delay: (OFF + v.t) * k, duration: v.dur * k, easing: v.easing || SUAVE }, v.pseudo));
-      // Un cursor por grupo de visuales (3 en escritorio, 2 en celular), con su etiqueta y su recorrido.
-      const grupos = [[], [], []];
-      visuales.filter((v) => v.c >= 0 && v.ruta).forEach((v) => grupos[cursor(v.c)].push(v));
-      grupos.forEach((g, n) => {
-        if (!g.length) return;
-        g.sort((a, b) => a.t - b.t);
+      const CANDIDATAS = (w, hg) => [[0, 0], [-(w + 19), 0], [0, -(hg + 26)], [-(w + 19), -(hg + 26)], [0, 38], [-(w + 19), 38]];
+      // La etiqueta no pasa sobre un título (con 6 px de aire) ni se sale de la pantalla por los lados.
+      const choca = (l, t, w, hg) => caja.left + l < 4 || caja.left + l + w > innerWidth - 4 || titulos.some((q) => l < q.r + 6 && l + w > q.l - 6 && t < q.b + 6 && t + hg > q.t - 6);
+      function crear(n, x, y) {
         const c = crearCursor(ROLES[n]);
         capa.append(c.el);
-        const [, x0, y0] = g[0].ruta[0];
-        const pts = [[0, enX(x0 + 140), enY(y0 - 30)]];
-        let prev = 0;
-        g.forEach((v) =>
-          v.ruta.forEach(([dt, x, y], i) => {
-            let t = (OFF + v.t + dt) * k;
-            t = i === 0 ? Math.max(prev + 40 * k, t - 120 * k) : Math.max(prev + 10, t);
-            t = Math.min(t, (FIN_VISUAL + 100) * k);
-            pts.push([t, enX(x), enY(y)]);
-            prev = t;
-          }),
-        );
+        const q = c.etiqueta.getBoundingClientRect();
+        cur[n] = { c, x, y, w: q.width, hg: q.height, cand: 0, nuevo: true };
+        return cur[n];
+      }
+
+      let finDe = 0; // ms (reloj de la sección) en que termina el último paso que ya salió
+
+      /* Hace un paso: las piezas y, si va con cursor, su recorrido, todo desde los mismos tiempos (ms de la sección, escalados por kk). */
+      function hacer(st, kk, conCursor, vj) {
+        const durK = Math.max(1, st.dur * kk);
+        const viajeK = conCursor ? vj * kk : 0; // las piezas esperan a que el cursor llegue
+        finDe = Math.max(finDe, ahora() + viajeK + durK);
+        st.partes.forEach((pt) => {
+          const d = pt.dur === undefined ? st.dur - (pt.dt || 0) : pt.dur;
+          anim(pt.host, pt.kf, { delay: viajeK + (pt.dt || 0) * kk, duration: Math.max(1, d * kk), easing: pt.easing || "linear" }, pt.pseudo);
+        });
+        if (!conCursor) return;
+        let k = cur[st.n];
+        const [, x0, y0] = st.ruta[0];
+        if (!k) {
+          const q = s.getBoundingClientRect();
+          k = crear(st.n, Math.min(Math.max(x0 + 90, 8), innerWidth - q.left - 40), y0 + (q.top + y0 - 40 >= BARRA ? -40 : 40));
+        }
+        const D = viajeK + durK;
+        const pts = [[0, k.x, k.y]];
+        st.ruta.forEach(([dt, x, y], i) => pts.push([viajeK + (i === 0 ? 0 : dt * kk), x, y]));
         const ult = pts[pts.length - 1];
-        pts.push([total, ult[1], ult[2]]);
-        anim(c.el, pts.map(([t, x, y]) => ({ transform: `translate(${Math.round(x)}px, ${Math.round(y)}px)`, offset: Math.min(1, t / total) })), { duration: total, easing: "linear" });
-        anim(c.el, { opacity: [0, 1, 1, 0], offset: [0, 0.08, (FIN_VISUAL * k) / total, 1] }, { duration: total, easing: "linear" });
-      });
-      reloj = setTimeout(terminar, total + 40);
+        if (ult[0] < D) pts.push([D, ult[1], ult[2]]);
+        anim(k.c.el, pts.map(([t, x, y]) => ({ transform: `translate(${Math.round(x)}px, ${Math.round(y)}px)`, offset: Math.min(1, t / D) })), { duration: D, fill: "forwards" });
+        if (k.nuevo) {
+          k.nuevo = false;
+          anim(k.c.el, { opacity: [0, 1] }, { duration: Math.min(90, D), fill: "both" });
+        }
+        // Etiqueta: cambia de lado (o se oculta) en saltos para no pasar sobre un título; se decide por muestras cada ~30 ms.
+        const cand = CANDIDATAS(k.w, k.hg);
+        const marcos = [];
+        const nm = Math.max(1, Math.round(D / 30));
+        const en = (t) => {
+          for (let i = 1; i < pts.length; i++) {
+            if (t <= pts[i][0] || i === pts.length - 1) {
+              const a = pts[i - 1];
+              const b = pts[i];
+              const f = b[0] === a[0] ? 1 : Math.min(1, Math.max(0, (t - a[0]) / (b[0] - a[0])));
+              return [a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+            }
+          }
+          return [pts[0][1], pts[0][2]];
+        };
+        let ci = k.cand;
+        for (let j = 0; j <= nm; j++) {
+          const [x, y] = en((D * j) / nm);
+          const [x2, y2] = en(Math.min(D, (D * (j + 1)) / nm));
+          const libre = (idx) => [[x, y], [x2, y2]].every(([px, py]) => !choca(px + 15 + cand[idx][0], py + 20 + cand[idx][1], k.w, k.hg));
+          const el = libre(ci) ? ci : cand.findIndex((_, idx) => libre(idx));
+          if (el >= 0) ci = el;
+          marcos.push({ offset: j / nm, transform: `translate(${cand[ci][0]}px, ${cand[ci][1]}px)`, opacity: el >= 0 ? 1 : 0, easing: "steps(1, jump-end)" });
+        }
+        k.cand = ci;
+        anim(k.c.etiqueta, marcos, { duration: D, fill: "forwards" });
+        k.x = ult[1];
+        k.y = ult[2];
+      }
+
+      const colas = [[], [], []];
+      const aparte = [];
+      pasos.forEach((st) => (st.n >= 0 ? colas[st.n] : aparte).push(st));
+      colas.forEach((q) => q.sort((a, b) => a.t - b.t));
+      let forzado = false;
+      let cerrando = false;
+      const pendiente = () => colas.some((q) => q.length) || aparte.length;
+      function cerrar() {
+        if (cerrando || pendiente()) return;
+        cerrando = true;
+        const espera = Math.max(0, finDe - ahora());
+        relojes.add(setTimeout(() => cur.forEach((k) => k && anim(k.c.el, { opacity: [1, 0] }, { duration: SALIDA, fill: "forwards" })), espera));
+        relojes.add(setTimeout(terminar, espera + SALIDA + 40));
+      }
+      /* Cada cursor toma, en orden, el primer paso suyo que YA está a la vista; si no hay ninguno espera a que el scroll lo traiga. */
+      function impulsar(n) {
+        if (hecho || apagado || forzado) return;
+        const cola = colas[n];
+        if (!cola.length) return cerrar();
+        const t = ahora();
+        const st = cola.find((x) => OFF + x.t <= t + 1 && dentro(x.ruta));
+        if (!st) {
+          relojes.add(setTimeout(() => impulsar(n), 30));
+          return;
+        }
+        cola.splice(cola.indexOf(st), 1);
+        const k = cur[n];
+        const [, x0, y0] = st.ruta[0];
+        const vj = k ? viaje(Math.hypot(x0 - k.x, y0 - k.y)) : 90;
+        const kk = Math.min(K, (LIM - t) / (vj + st.dur));
+        if (kk < 0.3) {
+          hacer(st, Math.max(0.05, (LIM - t) / st.dur), false, 0); // ya no cabe con cursor: se arma sola, rápido
+          return impulsar(n);
+        }
+        hacer(st, kk, true, vj);
+        relojes.add(setTimeout(() => impulsar(n), (vj + st.dur) * kk));
+      }
+      sesiones.add(s);
+      saltarMostrar();
+      colas.forEach((_, n) => relojes.add(setTimeout(() => impulsar(n), OFF)));
+      aparte.forEach((st) => relojes.add(setTimeout(() => (aparte.splice(aparte.indexOf(st), 1), hacer(st, K, false, 0), cerrar()), OFF + st.t)));
+      // Lo que a ese punto siga sin hacerse (no entró en pantalla a tiempo) se arma solo, de golpe y rápido: nada queda a medias ni con un cursor pegado a un borde.
+      relojes.add(
+        setTimeout(() => {
+          forzado = true;
+          const quedan = [...colas.flat(), ...aparte];
+          colas.forEach((q) => (q.length = 0));
+          aparte.length = 0;
+          quedan.forEach((st) => hacer(st, Math.max(0.05, Math.min(K, (LIM - ahora()) / st.dur)), false, 0));
+          cerrar();
+        }, LIM - 220),
+      );
     } catch (e) {
       terminar();
     }
@@ -524,9 +714,9 @@ function secciones() {
         continue;
       }
       if (html.classList.contains("js-entrada")) continue; // el hero va primero
+      // Dispara cuando el borde superior de la sección ya entró ~10 % de la altura de la pantalla; al llegar al final de la página, lo que se vea aunque sea menos.
       const visible = Math.min(q.bottom, alto) - Math.max(q.top, BARRA);
-      // ~30 % de la sección (o de la pantalla, si es más alta); al llegar al final de la página, lo que se vea aunque sea menos.
-      if (visible > 0 && (visible >= Math.min(0.3 * q.height, 0.3 * (alto - BARRA)) || alFinal)) animar(x);
+      if (visible > 0 && (q.top <= alto * DISPARO || alFinal)) animar(x);
     }
   };
 
@@ -552,7 +742,8 @@ function secciones() {
   );
 
   const umbrales = Array.from({ length: 21 }, (_, i) => i / 20);
-  ojo = new IntersectionObserver(revisar, { threshold: umbrales });
+  // El borde inferior del área observada sube 10 %: el aviso llega justo cuando el borde superior de la sección cruza esa línea.
+  ojo = new IntersectionObserver(revisar, { threshold: umbrales, rootMargin: "0px 0px -10% 0px" });
   lista.forEach((x) => ojo.observe(x.s));
   const pie = document.querySelector("body > footer");
   if (pie) ojo.observe(pie); // llegar al final de la página también revisa lo pendiente
