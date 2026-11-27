@@ -1,0 +1,75 @@
+/*
+ * tokens.css: variables del sistema visual «Studio». Se carga PRIMERO.
+ * Ningún color ni fuente se escribe literal fuera de este archivo.
+ *
+ * Orden de capas (se declara aquí para que sea el primero que ve el navegador):
+ *   base < componentes < utilidades
+ */
+@layer base, componentes, utilidades;
+
+:root {
+  /* Color */
+  --paper: #F1F7F8;    /* fondo */
+  --paper-2: #E5EDEF;  /* bandas alternas */
+  --paper-3: #D8E2E4;
+  --paper-hi: #F9FCFD; /* hojas y tarjetas */
+  --ink: #030E1A;      /* títulos y bordes */
+  --ink-2: #2F3943;    /* texto corrido */
+  --muted: #58626A;    /* etiquetas */
+  --rule: #C4CCCF;     /* líneas entre filas */
+  --accent: #E97219;   /* naranja: SOLO botón principal y líneas guía finas */
+  --focus: #AA4600;
+  --mark: rgba(3, 14, 26, 0.72); /* marcas de corte */
+  --dot: rgba(3, 14, 26, 0.2);   /* retícula de puntos */
+
+  /* Tipografía.
+     Cada pila lleva una fuente de respaldo ajustada (ver fuentes.css) justo
+     después de la fuente real, para que el cambio de fuente no mueva el layout. */
+  --font-display: "Hedvig Letters Serif", "Hedvig Letters Serif Ajuste", ui-serif, Georgia, serif;
+  --font-body: "Geist", "Geist Ajuste", ui-sans-serif, system-ui, sans-serif;
+
+  --radius: 3px;
+  --shadow-sheet: 1px 2px 0 rgba(3,14,26,.07), 10px 18px 36px -14px rgba(3,14,26,.32);
+
+  /* Escala tipográfica (fluida, sin saltos bruscos entre 320 y 1440 px) */
+  --texto: clamp(1rem, 0.9rem + 0.35vw, 1.1875rem);          /* 16 a 19 px */
+  --texto-chico: clamp(0.875rem, 0.8rem + 0.25vw, 1rem);     /* 14 a 16 px: etiquetas */
+  --titulo-1: clamp(2.5rem, 1.7rem + 4vw, 4.75rem);
+  --titulo-2: clamp(2rem, 1.5rem + 2.5vw, 3.25rem);
+  --titulo-3: clamp(1.5rem, 1.3rem + 1vw, 2rem);
+  --titulo-4: clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem);
+  --titulo-gigante: clamp(2.75rem, 0.5rem + 13vw, 9rem);    /* titular del cierre */
+
+  /* Espacio */
+  --espacio-1: 0.5rem;
+  --espacio-2: 1rem;
+  --espacio-3: 1.5rem;
+  --espacio-4: 2.5rem;
+  --espacio-5: 4rem;
+  --espacio-seccion: clamp(3rem, 2rem + 5vw, 6rem);
+
+  /* Retícula de página */
+  --margen: 24px;      /* lateral en celular */
+  --ancho-max: 72rem;  /* contenido, sin contar márgenes */
+  --toque: 44px;       /* área táctil mínima */
+  --barra-alto: 4.5rem; /* barra fija: 72 px, múltiplo de la retícula de puntos (24 px) */
+
+  /* Marcas de corte */
+  --marca-largo: 10px;
+  --marca-sep: 6px;    /* distancia entre la marca y la esquina */
+  --marca-abre: 4px;   /* cuánto se abren al pasar el mouse */
+
+  /* Movimiento */
+  --t-rapido: 150ms;
+  --t-normal: 200ms;
+  --t-lento: 250ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  color-scheme: light;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --margen: 56px; /* lateral en escritorio */
+  }
+}
