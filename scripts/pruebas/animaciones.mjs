@@ -935,6 +935,26 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
       if (!/salto\|Saltar al contenido/.test(t3)) falla("«Saltar» foco", `al desaparecer con el foco encima, el siguiente Tab debe empezar en el inicio del documento («Saltar al contenido») y llegó a ${t3}`);
       await cerrar(c0, "consola «Saltar» foco");
 
+      // Tab durante el hero: nada que reciba el foco puede estar oculto (los botones del hero empiezan con opacidad 0).
+      {
+        const cT = await abrir({ viewport: { width: 1280, height: 800 } });
+        const pT = await cT.ctx.newPage();
+        await pT.goto(servidor.url + ruta, { waitUntil: "domcontentloaded" });
+        await pT.waitForSelector(".entrada__saltar", { timeout: 2000 });
+        for (let i = 0; i < 12; i++) {
+          await pT.keyboard.press("Tab");
+          const r = await pT.evaluate(() => {
+            const e = document.activeElement;
+            let o = 1;
+            for (let n = e; n && n.nodeType === 1; n = n.parentElement) o *= Number(getComputedStyle(n).opacity);
+            return { o, t: (e?.textContent || "").trim().slice(0, 30), hero: !!e?.closest(".hero") };
+          });
+          if (r.o < 0.99) { falla("«Saltar» foco en el hero", `Tab llevó el foco a «${r.t}» con opacidad ${r.o.toFixed(2)} (invisible)`); break; }
+          if (r.hero) break;
+        }
+        await cerrar(cT, "consola Tab en el hero");
+      }
+
       // Desaparece solo (sin clic) estando enfocado: mismo resultado.
       const c1 = await abrir({ viewport: { width: 1280, height: 800 } });
       const p1 = await c1.ctx.newPage();

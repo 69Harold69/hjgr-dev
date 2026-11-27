@@ -1,11 +1,11 @@
 /*
- * main.js: las animaciones del sitio, sin librerías y solo con transform y opacity. Los cursores (Procesos, Backend, Soporte) arman:
+ * main.js: las animaciones del sitio, sin librerías y solo con transform, opacity y clip-path. Los cursores (Procesos, Backend, Soporte) arman:
  *   1. El hero, en cada carga, en la primera pantalla (lo decide inicio.js, que pone js-entrada en <html>). El titular y su
  *      párrafo NO participan: se ven desde el primer pintado (el LCP es el H1). Arman solo la hoja, los botones y la línea
- *      naranja. Dura 3.9 s; scroll, toque o tecla la terminan al instante.
+ *      naranja. Dura 3.9 s; scroll, toque o tecla (menos Tab, salvo que el foco entre al hero) la terminan al instante.
  *   2. Cada sección, una sola vez por carga, cuando entra en pantalla (#31): líneas, bordes, marcas de corte, la línea de las
  *      etapas, el resaltado de la fila del diagnóstico y las capturas dentro de su marco. El texto nunca se esconde.
- *      Máximo 1.3 s por sección, 3 cursores (2 en celular, más cortas). Lo que queda atrás al hacer scroll rápido se arma al instante.
+ *      Máximo 1.4 s por sección (TOPE), 3 cursores (2 en celular, 0.94 s). Lo que queda atrás al hacer scroll rápido se arma al instante.
  *   «Saltar» (o Escape) apaga los cursores en TODA la página durante esa visita; en la siguiente carga vuelven (sin memoria).
  * Los estados «desarmados» viven en home.css bajo .js-entrada y .js-secciones. Si algo falla, se quitan las clases y todo queda visible.
  */
@@ -110,7 +110,7 @@ function entrada() {
   const ancho = innerWidth;
   const alto = innerHeight;
   const animaciones = [];
-  const eventos = ["scroll", "wheel", "touchstart", "pointerdown", "keydown", "resize"];
+  const eventos = ["scroll", "wheel", "touchstart", "pointerdown", "keydown", "resize", "focusin"];
   let hecho = false;
   let reloj = 0;
 
@@ -134,6 +134,8 @@ function entrada() {
   function fin(e) {
     if (e && saltar && e.target === saltar) return; // el clic de «Saltar» lo atiende su propio manejador (apagar)
     if (e && e.type === "keydown" && e.key === "Tab") return; // Tab solo mueve el foco (primero a «Saltar»): no termina la entrada
+    // ...salvo que el foco llegue a algo que la entrada aún oculta (los botones y la hoja del hero): ahí termina al instante.
+    if (e && e.type === "focusin" && !(e.target instanceof Element && e.target.closest(".hero"))) return;
     if (hecho) return;
     hecho = true;
     clearTimeout(reloj);
