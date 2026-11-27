@@ -897,7 +897,10 @@ function secciones() {
           if (tiene[n] && ocupado[n] && cur[n]) {
             const st = pasos.find((x) => x.n === n && x.estado === "corre");
             const q = cur[n].c.el.getBoundingClientRect();
-            if (st && st.apurar && (q.top < BARRA - 14 || q.top > innerHeight - 12 || q.left < -2 || q.left > innerWidth - 10)) st.apurar();
+            if (q.top < BARRA - 14 || q.top > innerHeight - 12 || q.left < -2 || q.left > innerWidth - 10) {
+              if (st && st.apurar) st.apurar();
+              else if (!st) retirar(n, true); // en la pausa entre dos pasos el scroll lo dejó detrás de la barra o en el borde: se va ya (el siguiente paso trae otro)
+            }
             continue;
           }
           if (!tiene[n] || ocupado[n] || saliendo[n] || !cur[n] || siguiente(n)) continue;
