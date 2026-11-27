@@ -17,14 +17,21 @@
     formularios    no hay <form>
     meta           lang, un h1, title y description únicos, canonical absoluto dentro de origen, OG y Twitter con imagen
                    absoluta; 404.html con noindex y sin canonical
-    json-ld        JSON válido, sin aggregateRating/review/ratingValue, URLs propias o de hosts-externos.json
+    json-ld        toda página indexable con JSON-LD válido (@context schema.org y @type o @graph); sin aggregateRating, review,
+                   ratingValue, teléfono, correo, horario, calle, código postal, foundingDate, numberOfEmployees ni logo; los
+                   precios (price/minPrice/maxPrice) solo de la lista de precios permitidos y en MXN; URLs propias o de
+                   hosts-externos.json
     sitemap        toda página indexable en sitemap.xml con lastmod y viceversa; robots.txt apunta al sitemap
     imagenes       todo <img> con alt, width y height
     enlaces        enlaces internos a archivos (y anclas) existentes; ningún <a> sin href
-    trato          texto visible de USTED (patrones en TUTEO e IMPERATIVOS_INICIALES; excepción: data-trato-excepcion)
-    voz            sin «somos», «nuestro equipo», «nuestra agencia», «agencia»
-    precios        cifras con $ solo de la lista exacta; ninguna termina en 99 o 990 ni es redonda
-    marcadores     avisa de 52XXXXXXXXXX / PENDIENTE (con --estricto, falla)
+    trato          de USTED (patrones en TUTEO e IMPERATIVOS_INICIALES; excepción: data-trato-excepcion) en el texto visible y
+                   también en <title>, meta description/og/twitter, alt, title, aria-label, placeholder y cadenas del JSON-LD
+    voz            sin «somos», «nuestro equipo», «nuestra agencia», «agencia» (mismos textos que trato)
+    precios        cifras con $ solo de la lista exacta; ninguna termina en 99 o 990 ni es redonda; ninguna cifra con
+                   separador de miles sin $; en toda tabla con columna «Servicio», cada fila es un servicio de
+                   PRECIOS_POR_SERVICIO y lleva exactamente SUS cifras (y el JSON-LD, en la regla json-ld, también)
+    marcadores     avisa de 52XXXXXXXXXX / PENDIENTE y del hueco de la foto («Foto pendiente», .foto__espacio) (con --estricto, falla)
+    giros          corre giros.py --check: cada <giro>/index.html es exactamente lo que generan index.html y scripts/giros/<giro>.json
     dominio, versionado, contacto   corren dominio.py, versionar.py y contacto.py con --check
 */
 import fs from "node:fs";
@@ -39,6 +46,24 @@ import { CSP, archivoDe } from "./lib/servidor.mjs";
 
 /** Cifras con $ permitidas (únicas que pueden aparecer en el texto visible). */
 export const PRECIOS_PERMITIDOS = [9870, 1140, 24680, 1460, 38470, 12460, 3280, 27340, 3870, 14860, 1870, 48760, 2940];
+
+/*
+  La tabla de precios, fila por fila, como la aprobó Harold: [precio, al mes]. Una cifra de la lista puesta en la
+  fila equivocada (p. ej. $24,680 en «Web Express») pasaría la lista de arriba; esta tabla la detecta. La usan la
+  regla `precios` (toda tabla con encabezado de columna «Servicio») y `json-ld` (cada Offer con itemOffered.name).
+*/
+export const PRECIOS_POR_SERVICIO = {
+  "Web Express": ["$9,870", "$1,140"],
+  "Web Negocio": ["$24,680", "$1,460"],
+  "Web a la medida": ["desde $38,470", "desde $1,460"],
+  "Asistente de WhatsApp": ["$12,460", "$3,280"],
+  "Web y asistente": ["$27,340", "$3,870"],
+  "Automatización": ["desde $14,860", "soporte desde $1,870"],
+  "Sistema interno": ["desde $48,760", "soporte desde $2,940"],
+  "Diagnóstico de procesos": ["$3,870", "Se descuenta si seguimos"],
+};
+/* Cifra con separador de miles que no lleva $ delante: «9,870 pesos» es un precio mal escrito. */
+const RE_CIFRA_SIN_SIGNO = /(?<![$\d.,])(?<!\$\s)\d{1,3}(?:,\d{3})+(?![\d,])/g;
 
 /*
   Trato de USTED. Cada patrón se busca como palabra completa (sin distinguir mayúsculas) en el texto visible.
@@ -64,7 +89,18 @@ export const IMPERATIVOS_INICIALES = [
 ];
 export const VOZ_PROHIBIDA = ["somos", "nuestro equipo", "nuestra agencia", "agencia"];
 export const MARCADORES = ["52XXXXXXXXXX", "PENDIENTE"];
-const CLAVES_PROHIBIDAS_LD = new Set(["aggregaterating", "review", "ratingvalue"]);
+/* Además del texto exacto: el hueco de la foto, que se escribe «Foto pendiente» (minúsculas) y lleva su clase. */
+export const MARCADORES_RE = [
+  [/foto pendiente/i, "«Foto pendiente»"],
+  [/class="[^"]*\bfoto__espacio\b/, "el hueco de la foto (.foto__espacio)"],
+];
+/* Datos que NO se publican en el JSON-LD: nada que no esté escrito en la página (ni reseñas, ni contacto, ni calle). */
+const CLAVES_PROHIBIDAS_LD = new Set([
+  "aggregaterating", "review", "reviews", "ratingvalue", "ratingcount", "reviewcount", "bestrating", "worstrating",
+  "telephone", "faxnumber", "email", "openinghours", "openinghoursspecification", "streetaddress", "postalcode", "postofficeboxnumber",
+  "foundingdate", "numberofemployees", "logo", "geo", "hasmap",
+]);
+const CLAVES_PRECIO_LD = new Set(["price", "minprice", "maxprice"]);
 const TIPOS_PROHIBIDOS_LD = new Set(["aggregaterating", "review"]);
 const CLAVES_URL_LD = new Set(["@id", "url", "image", "logo", "item", "mainEntityOfPage"]);
 
@@ -108,6 +144,46 @@ function textosVisibles(arbol, { sinExcepcion = false } = {}) {
   return r;
 }
 
+/*
+  Textos que el visitante (o su lector de pantalla, o WhatsApp al compartir) también lee aunque no sean nodos de texto
+  del <body>: el <title>, los metadatos de descripción y de compartir, los atributos alt/title/aria-label/placeholder y
+  las cadenas del JSON-LD. Las reglas de trato y voz los revisan igual que el texto visible.
+*/
+const META_TEXTO = new Set(["description", "og:title", "og:description", "og:image:alt", "twitter:title", "twitter:description", "twitter:image:alt"]);
+const ATRIBUTOS_TEXTO = ["alt", "title", "aria-label", "aria-description", "placeholder"];
+const CLAVES_LD_NO_TEXTO = new Set(["@context", "@type", "@id", "url", "sameAs", "image", "logo", "item", "mainEntityOfPage", "priceCurrency", "inLanguage", "addressCountry"]);
+function textosNoVisibles(arbol, { sinExcepcion = false } = {}) {
+  const r = [];
+  const ir = (n, enExcepcion) => {
+    const exc = enExcepcion || (sinExcepcion && n.attrs && attr(n, "data-trato-excepcion") !== undefined);
+    if (n.tagName && !exc) {
+      if (n.tagName === "title") r.push({ texto: textoCompleto(n), linea: linea(n), origen: "<title>" });
+      if (n.tagName === "meta") {
+        const clave = attr(n, "name") ?? attr(n, "property");
+        if (META_TEXTO.has(clave) && attr(n, "content")) r.push({ texto: attr(n, "content").trim(), linea: linea(n), origen: `meta ${clave}` });
+      }
+      for (const a of ATRIBUTOS_TEXTO) if (attr(n, a)?.trim()) r.push({ texto: attr(n, a).trim(), linea: linea(n), origen: `${a}= de <${n.tagName}>` });
+      if (n.tagName === "script" && attr(n, "type") === "application/ld+json") {
+        let datos = null;
+        try {
+          datos = JSON.parse(textoDe(n));
+        } catch {
+          /* la regla json-ld ya lo reporta */
+        }
+        const cadenas = (v, k) => {
+          if (Array.isArray(v)) return v.forEach((x) => cadenas(x, k));
+          if (v && typeof v === "object") return Object.entries(v).forEach(([kk, x]) => cadenas(x, kk));
+          if (typeof v === "string" && !CLAVES_LD_NO_TEXTO.has(k) && !/^https?:\/\//i.test(v)) r.push({ texto: v.trim(), linea: linea(n), origen: `JSON-LD «${k}»` });
+        };
+        cadenas(datos, "");
+      }
+    }
+    for (const h of hijos(n)) ir(h, exc);
+  };
+  ir(arbol, false);
+  return r;
+}
+
 function metaContenido(arbol, clave) {
   return elementos(arbol, "meta").find((m) => attr(m, "property") === clave || attr(m, "name") === clave);
 }
@@ -142,7 +218,14 @@ const reglas = {
     const hv = new HtmlValidate({
       extends: ["html-validate:recommended"],
       // Estilo puro, o ya cubierto por csp-estatica (para no fallar dos veces por lo mismo).
-      rules: { "void-style": "off", "no-trailing-whitespace": "off", "no-inline-style": "off", "doctype-style": "off" },
+      rules: {
+        "void-style": "off",
+        "no-trailing-whitespace": "off",
+        "no-inline-style": "off",
+        "doctype-style": "off",
+        // El título de la página de vidrierías (71 caracteres) es el texto acordado; el máximo por defecto es 70.
+        "long-title": ["error", { maxlength: 75 }],
+      },
     });
     const fallas = [];
     for (const p of ctx.paginas) {
@@ -236,7 +319,9 @@ const reglas = {
   "json-ld"(ctx) {
     const fallas = porPagina(ctx, (p) => {
       const f = [];
-      for (const s of elementos(p.arbol, "script").filter((x) => attr(x, "type") === "application/ld+json")) {
+      const scripts = elementos(p.arbol, "script").filter((x) => attr(x, "type") === "application/ld+json");
+      if (!scripts.length && !p.noindex && !p.es404) f.push(`${p.archivo} la página indexable no tiene JSON-LD (<script type="application/ld+json">)`);
+      for (const s of scripts) {
         let datos;
         try {
           datos = JSON.parse(textoDe(s));
@@ -244,12 +329,31 @@ const reglas = {
           f.push(`${donde(p, s)} JSON-LD no es JSON válido: ${e.message}`);
           continue;
         }
+        if (!datos || typeof datos !== "object" || !/^https:\/\/schema\.org\/?$/.test(String([].concat(datos["@context"] ?? "")[0]))) f.push(`${donde(p, s)} JSON-LD sin "@context": "https://schema.org"`);
+        if (datos && typeof datos === "object" && !datos["@type"] && !datos["@graph"]) f.push(`${donde(p, s)} JSON-LD sin "@type" ni "@graph"`);
         const ir = (v, clave) => {
           if (Array.isArray(v)) return v.forEach((x) => ir(x, clave));
           if (v && typeof v === "object") {
             for (const [k, x] of Object.entries(v)) {
-              if (CLAVES_PROHIBIDAS_LD.has(k.toLowerCase())) f.push(`${donde(p, s)} JSON-LD con «${k}» (no se inventan reseñas ni calificaciones)`);
+              if (CLAVES_PROHIBIDAS_LD.has(k.toLowerCase())) f.push(`${donde(p, s)} JSON-LD con «${k}» (solo se publica lo que está escrito en la página; sin reseñas, contacto, calle ni datos inventados)`);
               if (k === "@type") for (const t of [].concat(x)) TIPOS_PROHIBIDOS_LD.has(String(t).toLowerCase()) && f.push(`${donde(p, s)} JSON-LD con @type «${t}»`);
+              if (CLAVES_PRECIO_LD.has(k.toLowerCase())) {
+                const n = Number(String(x).replace(/[$,\s]/g, ""));
+                if (!Number.isFinite(n) || !PRECIOS_PERMITIDOS.includes(n)) f.push(`${donde(p, s)} JSON-LD «${k}» = ${JSON.stringify(x)} no está en la lista de precios permitidos`);
+              }
+              if (k === "priceCurrency" && x !== "MXN") f.push(`${donde(p, s)} JSON-LD priceCurrency «${x}» debe ser MXN`);
+              if (k === "itemOffered" && x && typeof x === "object" && typeof x.name === "string") {
+                // La oferta de un servicio de la tabla: su precio de arranque debe ser el de SU fila (y «desde» = minPrice).
+                const fila = PRECIOS_POR_SERVICIO[x.name];
+                const ps = [].concat(v.priceSpecification ?? [], v.price !== undefined ? [{ price: v.price }] : [])[0] ?? {};
+                if (!fila) f.push(`${donde(p, s)} JSON-LD: oferta «${x.name}» no es un servicio de la tabla de precios`);
+                else {
+                  const esperado = Number(fila[0].replace(/[^\d]/g, ""));
+                  const desde = /^desde\b/.test(fila[0]);
+                  const dado = ps[desde ? "minPrice" : "price"];
+                  if (Number(dado) !== esperado) f.push(`${donde(p, s)} JSON-LD: «${x.name}» debe llevar ${desde ? "minPrice" : "price"} ${esperado} (la tabla dice «${fila[0]}») y lleva ${JSON.stringify(ps)}`);
+                }
+              }
               ir(x, k);
             }
           } else if (typeof v === "string" && CLAVES_URL_LD.has(clave) && /^https?:\/\//i.test(v)) {
@@ -335,9 +439,9 @@ const reglas = {
   trato(ctx) {
     return {
       fallas: porPagina(ctx, (p) =>
-        textosVisibles(p.arbol, { sinExcepcion: true }).flatMap((t) => {
+        [...textosVisibles(p.arbol, { sinExcepcion: true }), ...textosNoVisibles(p.arbol, { sinExcepcion: true })].flatMap((t) => {
           const m = t.texto.match(RE_TUTEO) ?? t.texto.match(RE_IMPERATIVO);
-          return m ? [`${p.archivo}:${t.linea} trato de tú/vos («${m[0].trim()}») en «${t.texto.slice(0, 70)}»: use de usted`] : [];
+          return m ? [`${p.archivo}:${t.linea} trato de tú/vos («${m[0].trim()}») en ${t.origen ? `${t.origen} ` : ""}«${t.texto.slice(0, 70)}»: use de usted`] : [];
         }),
       ),
     };
@@ -346,9 +450,9 @@ const reglas = {
   voz(ctx) {
     return {
       fallas: porPagina(ctx, (p) =>
-        textosVisibles(p.arbol).flatMap((t) => {
+        [...textosVisibles(p.arbol), ...textosNoVisibles(p.arbol)].flatMap((t) => {
           const m = t.texto.match(RE_VOZ);
-          return m ? [`${p.archivo}:${t.linea} voz plural/agencia («${m[0]}») en «${t.texto.slice(0, 70)}»: Harold trabaja solo`] : [];
+          return m ? [`${p.archivo}:${t.linea} voz plural/agencia («${m[0]}») en ${t.origen ? `${t.origen} ` : ""}«${t.texto.slice(0, 70)}»: Harold trabaja solo`] : [];
         }),
       ),
     };
@@ -368,16 +472,38 @@ const reglas = {
             if (valor % 1000 === 0) f.push(`${en} es una cifra redonda`);
             return f;
           }),
+        ).concat(
+          // Cifras con separador de miles sin $ («9,870 pesos»): un precio mal escrito que la lista no ve.
+          textosVisibles(p.arbol).flatMap((t) => [...t.texto.matchAll(RE_CIFRA_SIN_SIGNO)].map((m) => `${p.archivo}:${t.linea} «${m[0]}» parece un precio sin $ en «${t.texto.slice(0, 70)}»`)),
+          // Tabla de precios (encabezado de columna «Servicio»): cada fila es un servicio conocido y lleva SUS cifras.
+          elementos(p.arbol, "table")
+            .filter((tabla) => elementos(tabla, "th").some((th) => attr(th, "scope") !== "row" && textoCompleto(th) === "Servicio"))
+            .flatMap((tabla) =>
+              elementos(tabla, "tr")
+                .filter((tr) => hijos(tr).some((c) => c.tagName === "td"))
+                .flatMap((tr) => {
+                  const celdas = hijos(tr).filter((c) => c.tagName === "th" || c.tagName === "td");
+                  const servicio = textoCompleto(celdas[0] ?? { childNodes: [] });
+                  const fila = PRECIOS_POR_SERVICIO[servicio];
+                  if (!fila) return [`${donde(p, tr)} la tabla de precios tiene «${servicio}», que no es un servicio de la lista (PRECIOS_POR_SERVICIO)`];
+                  const dados = celdas.slice(1).map((c) => textoCompleto(c));
+                  return fila.flatMap((esperado, i) => (dados[i] === esperado ? [] : [`${donde(p, tr)} «${servicio}»: la columna ${i + 1} debe decir «${esperado}» y dice «${dados[i] ?? ""}»`]));
+                }),
+            ),
         ),
       ),
     };
   },
 
   marcadores(ctx, args) {
-    const hallazgos = porPagina(ctx, (p) => MARCADORES.filter((m) => p.html.includes(m)).map((m) => `${p.archivo} aún contiene el marcador ${m}`));
+    const hallazgos = porPagina(ctx, (p) => [
+      ...MARCADORES.filter((m) => p.html.includes(m)).map((m) => `${p.archivo} aún contiene el marcador ${m}`),
+      ...MARCADORES_RE.filter(([re]) => re.test(p.html)).map(([, que]) => `${p.archivo} aún contiene ${que}`),
+    ]);
     return args.estricto ? { fallas: hallazgos } : { fallas: [], avisos: hallazgos };
   },
 
+  giros: (ctx) => python("giros.py", ctx),
   dominio: (ctx) => python("dominio.py", ctx),
   versionado: (ctx) => python("versionar.py", ctx),
   contacto: (ctx) => python("contacto.py", ctx),
