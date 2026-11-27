@@ -647,6 +647,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
       const en = `@${vp.width}px`;
       const chico = vp.width < 768;
       const maxMs = chico ? 2500 : 4000; // tiempo de animación por sección (decisión del dueño): 4 s en escritorio, 2.5 s en celular
+      const minActivo = chico ? 1900 : 2500; // ms: leída de a una, una sección con 3 o más pasos anima, al menos, esto (el objetivo del dueño es 4 s / 2.5 s, no solo el tope)
       const minPaso = 180; // ms: un paso (el cursor llega, dibuja) nunca dura menos: se lee como un dibujo, no como un barrido
       const abrirSec = async (opciones = {}, destino = ruta) => {
         const c = await abrir({ viewport: vp, ...opciones });
@@ -964,7 +965,8 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
             if (r.max < 1 || r.max > (chico ? 2 : 3)) falla(`secciones ${nombre}`, `${r.max} cursores a la vez (se esperan 1 a ${chico ? 2 : 3})`);
             const cortos = r.pasos.filter((d) => d < minPaso);
             if (cortos.length) falla(`secciones ${nombre}`, `pasos demasiado cortos (${cortos.join(", ")} ms; mínimo ${minPaso} ms): se leería como un barrido`);
-            if (r.pasos.some((d) => d > 1500)) falla(`secciones ${nombre}`, `un paso dura ${Math.max(...r.pasos)} ms (máximo 1500: los demás cursores esperarían demasiado)`);
+            if (r.pasos.some((d) => d > 2000)) falla(`secciones ${nombre}`, `un paso dura ${Math.max(...r.pasos)} ms (máximo 2000: los demás cursores esperarían demasiado)`);
+            if (r.pasos.length >= 3 && dur < minActivo) falla(`secciones ${nombre}`, `solo ${dur.toFixed(0)} ms de animación con ${r.pasos.length} pasos (mínimo ${minActivo}: debe acercarse al objetivo de ${maxMs} ms)`);
             if (!r.cursoresOk) falla(`secciones ${nombre}`, "los cursores o su capa no son aria-hidden con pointer-events:none");
             for (const m of r.texto) falla(`secciones ${nombre} a mitad de la animación`, `texto escondido: ${m}`);
             console.log(`  ${nombre}: ${r.max} cursores, ${dur.toFixed(0)} ms de animación, ${r.pasos.length} pasos de ${Math.min(...r.pasos)} a ${Math.max(...r.pasos)} ms`);

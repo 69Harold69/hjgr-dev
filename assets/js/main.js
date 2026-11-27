@@ -289,11 +289,13 @@ function abandonar() {
 const SALIDA = 160; // ms: el cursor se desvanece al final
 const TOPE = 4000; // ms de animación por sección en escritorio (decisión del dueño: se lee como un dibujo, no como un barrido), con la salida del cursor incluida
 const TOPE_CEL = 2500; // ms en celular
-const KMAX = 3; // una sección con pocos pasos no se estira más de 3 veces su ritmo base
+const KMAX = 11; // una sección con pocos pasos no se estira más de 11 veces su ritmo base
 const PAUSA = 110; // ms: pausa breve del cursor entre una pieza y la siguiente (a ritmo 1)
-const PASO_MAX = 700; // ms: ningún paso dura más que esto (así un cursor cede su lugar a otra pieza a la vista en menos de ~1 s)
+const PASO_MAX = 1700; // ms: ningún paso dura más que esto en escritorio (900 en celular): un cursor cede su lugar a otra pieza a la vista a más tardar al terminarlo
+const PASO_MAX_CEL = 1300
+const SOLAPE = (chico) => (chico ? 1.6 : 2.8); // con piezas a la vista a la vez los cursores trabajan en paralelo: el ritmo base cuenta con ese solape; el gobernador de cada sección cuida que el tiempo real no pase del tope
 const GRACIA = 450; // ms: un cursor sin pieza a la vista espera esto antes de irse
-const VIAJE_K = 1.6; // el viaje del cursor entre piezas no se estira más que esto
+const VIAJE_K = 2; // el viaje del cursor entre piezas no se estira más que esto
 const MAX_CURSORES = (chico) => (chico ? 2 : 3); // cursores a la vez en TODA la pantalla (cola global)
 const BARRA = 88; // px: la barra fija (72) y el aire que las anclas le dejan (scroll-padding-top): lo que queda detrás de ella cuenta como «atrás»
 const DISPARO = 0.9; // la sección queda «activa» cuando su borde superior ya entró ~10 % de la altura de la pantalla; cada pieza arranca cuando ELLA está a la vista
@@ -560,6 +562,10 @@ function secciones() {
     const saliendo = [false, false, false];
     const saleEl = [null, null, null]; // cursor que se está desvaneciendo (y su animación), por si el scroll lo deja en el borde
     const saleAn = [null, null, null];
+    let corriendo = 0; // pasos en curso
+    let tCorre = 0;
+    let gastado = 0; // ms reales de la sección con algo animándose (varios cursores a la vez cuentan una vez)
+    const consumido = () => gastado + (corriendo ? performance.now() - tCorre : 0);
     const gracia = [0, 0, 0]; // temporizador: un cursor sin pieza a la vista espera un momento antes de irse (si llega otra, sigue sin salir y volver a entrar)
     let hecho = false;
     let cerrando = false;
@@ -614,7 +620,8 @@ function secciones() {
 
       // --- Ritmo: la suma de lo que dura cada paso (viaje + dibujo) cabe en el tope de la sección.
       // Si los pasos base caben con holgura, se estiran (hasta KMAX) para que se lea como un dibujo; si no caben, se comprimen parejo. ---
-      const escala = (st, K) => Math.min(K, PASO_MAX / st.dur); // escala de un paso: el ritmo de la sección, sin pasar de PASO_MAX ms
+      const pasoMax = chico ? PASO_MAX_CEL : PASO_MAX;
+      const escala = (st, K) => Math.min(K, pasoMax / st.dur); // escala de un paso: el ritmo de la sección, sin pasar de PASO_MAX ms
       const duracion = (K) => {
         // La suma del tiempo de animación de la sección: el viaje del cursor a cada pieza más lo que tarda en dibujarla (los cursores se reparten las piezas,
         // pero con piezas que llegan una a una o con la cola global llena corren una tras otra, así que se cuenta todo como si fuera en fila).
@@ -629,7 +636,7 @@ function secciones() {
         });
         return suma;
       };
-      const LIM = (tope - SALIDA - 40) * 0.88; // el resto del tope: la salida de los cursores (entre piezas muy espaciadas cada cursor sale y vuelve a entrar) // ms: con todo a la vista el último paso termina antes de esto; el resto del tope se lo llevan los viajes a una pieza nueva y la salida de cada cursor
+      const LIM = (tope - SALIDA - 40) * 0.94 * SOLAPE(chico); // el resto del tope: la salida de los cursores (entre piezas muy espaciadas cada cursor sale y vuelve a entrar) // ms: con todo a la vista el último paso termina antes de esto; el resto del tope se lo llevan los viajes a una pieza nueva y la salida de cada cursor
       let K = KMAX;
       if (duracion(K) > LIM) {
         let lo = 0.1;
@@ -641,7 +648,7 @@ function secciones() {
         }
         K = lo;
       }
-      const pausa = PAUSA * Math.min(K, 1.5);
+      const pausa = PAUSA * Math.min(K, 2.5);
 
       let actual = null; // paso que está creando sus animaciones (para poder terminarlas de golpe)
       const anim = (el, kf, op, pseudo) => {
@@ -768,14 +775,28 @@ function secciones() {
         const cola = pasos.filter((x) => x.n === n && x.estado === "lista" && x !== st);
         const espera = cola.reduce((t, x) => t + x.dur * escala(x, K) + pausa + 60, 0);
         const ks0 = escala(st, K);
-        const ks = Math.max(Math.min(ks0, 220 / st.dur), ks0 * Math.min(1, Math.max(0.4, 1000 / Math.max(1, espera + st.dur * ks0)))); // nunca por debajo de ~220 ms de dibujo
+        const ks1 = Math.max(Math.min(ks0, 220 / st.dur), ks0 * (espera > 0 ? Math.min(1, Math.max(0.4, 1500 / Math.max(1, espera + st.dur * ks0))) : 1)); // nunca por debajo de ~220 ms de dibujo
         const vj = (k ? viaje(Math.hypot(x0 - k.x, y0 - k.y)) : 60) * Math.min(K, VIAJE_K);
+        // Gobernador: el tiempo real de animación de la sección (con los cursores en paralelo contando una vez) no pasa del tope; si ya se gastó mucho,
+        // lo que falta por armar se aprieta (guardando ~260 ms para cada paso que aún no sale).
+        const faltan = pasos.filter((x) => x !== st && (x.estado === "espera" || x.estado === "lista")).length;
+        const restante = tope - 2 * SALIDA - 80 - consumido();
+        const tope1 = Math.max(vj + 150, restante - 260 * faltan);
+        const ks = Math.max(0.05, Math.min(ks1, (tope1 - vj) / st.dur));
         st.anims = [];
         actual = st;
         hacer(st, ks, vj, true);
         actual = null;
         ocupado[n] = true;
+        if (corriendo++ === 0) tCorre = performance.now();
+        let cuenta = true;
+        const finCuenta = () => {
+          if (!cuenta) return;
+          cuenta = false;
+          if (--corriendo === 0) gastado += performance.now() - tCorre;
+        };
         const alFinal = () => {
+          finCuenta();
           marcar(st, "hecha");
           if (todos()) return cerrar();
           relojes.add(
@@ -790,6 +811,7 @@ function secciones() {
         // El lector dejó de bajar y esta pieza quedó fuera de la pantalla a medio dibujar: se termina de golpe (sin cursor visible apuntando a un lugar que no se ve).
         st.apurar = () => {
           clearTimeout(st.reloj);
+          finCuenta();
           st.anims.forEach((a) => {
             try {
               a.finish();
