@@ -307,7 +307,8 @@ const SONDA_CURSORES = () => {
       const aVista = r.bottom > 90 && r.top < innerHeight - 60 && r.right > 0 && r.left < innerWidth;
       if (!esSombra && prog > 0.04 && prog < 0.96 && aVista && r.width * r.height > 0) {
         // El cursor y la línea se muestrean en el mismo cuadro, pero una línea rápida cruza hasta 350 px por cuadro: vale la punta de este cuadro o la del anterior.
-        const cerca = [...puntas, ...antes].some((p) => dist(p.x, p.y, r) < 90);
+        const largo = Math.max(el.offsetWidth, el.offsetHeight); // en 45 ms una línea de 400 px avanza 140 px por cuadro: la tolerancia crece con la velocidad
+        const cerca = [...puntas, ...antes].some((p) => dist(p.x, p.y, r) < 90 + 0.35 * largo);
         if (!cerca && S.sinCursor.length < 6) S.sinCursor.push(`${nombre} ${el.className.replace("arma-capa", "capa")} al ${Math.round(prog * 100)} % a ${Math.round(ahora)} ms (cursores: ${puntas.length})`);
       }
     }
@@ -607,7 +608,15 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         return { c, page };
       };
       const secciones = (page) => page.evaluate(() => [...document.querySelectorAll("main > section:not(.hero)")].map((s, i) => ({ i: [...document.querySelectorAll("main > section")].indexOf(s), nombre: s.id || s.className.split(" ")[0], tinta: s.classList.contains("banda--tinta") })));
-      const irA = (page, i) => page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; window.scrollTo(0, window.scrollY + s.getBoundingClientRect().top - 90); }, i);
+      // Un lector sube hasta ver lo importante: la sección arriba (90 px), o, si no cabe, hasta dejar a la vista la fila del diagnóstico (precios) o las filas de sistemas.
+      const irA = (page, i, nombre = "") => page.evaluate(([n, nom]) => {
+        const s = document.querySelectorAll("main > section")[n];
+        let meta = s.getBoundingClientRect().top - 90;
+        const ref = nom === "precios" ? s.querySelector(".tabla__destacada") : nom === "sistemas" ? s.querySelector(".fila:last-child") : null;
+        if (ref) meta = Math.max(meta, ref.getBoundingClientRect().bottom + 30 - innerHeight);
+        if (nom === "sistemas") meta = Math.min(meta, s.querySelector(".proceso").getBoundingClientRect().top - 110);
+        window.scrollTo(0, window.scrollY + meta);
+      }, [i, nombre]);
 
       /* 8j. (#35) En el PRIMER cuadro en que cada sección entra en pantalla sus piezas visuales están SIN armar (estilos computados) y al final están armadas.
              Guarda un PNG por sección en salida/animaciones/ (primer cuadro, a mitad y armado). */
@@ -682,7 +691,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         await sinAnimacion(page);
         const lista = (await secciones(page)).filter((x) => !x.tinta);
         for (const x of lista) {
-          await irA(page, x.i);
+          await irA(page, x.i, x.nombre);
           await page.waitForTimeout(1700);
         }
         const S = await page.evaluate(() => window.__sec);
