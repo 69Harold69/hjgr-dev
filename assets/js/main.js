@@ -291,15 +291,15 @@ const TOPE = 4000; // ms de animación por sección en escritorio (decisión del
 const TOPE_CEL = 2500; // ms en celular
 const KMAX = 11; // una sección con pocos pasos no se estira más de 11 veces su ritmo base
 const PAUSA = 110; // ms: pausa breve del cursor entre una pieza y la siguiente (a ritmo 1)
-const PASO_MAX = 1400; // ms: ningún paso dura más que esto en escritorio (900 en celular): un cursor cede su lugar a otra pieza a la vista a más tardar al terminarlo
-const PASO_MAX_CEL = 1300
+const PASO_MAX = 1400; // ms: ningún paso dura más que esto en escritorio (PASO_MAX_CEL en celular): un cursor cede su lugar a otra pieza a la vista a más tardar al terminarlo
+const PASO_MAX_CEL = 1300;
 const SOLAPE = (chico) => (chico ? 1.6 : 3.4); // con piezas a la vista a la vez los cursores trabajan en paralelo: el ritmo base cuenta con ese solape; el gobernador de cada sección cuida que el tiempo real no pase del tope
 const GRACIA = 450; // ms: un cursor sin pieza a la vista espera esto antes de irse
 const VIAJE_K = 2; // el viaje del cursor entre piezas no se estira más que esto
 const MAX_CURSORES = (chico) => (chico ? 2 : 3); // cursores a la vez en TODA la pantalla (cola global)
 const BARRA = 88; // px: la barra fija (72) y el aire que las anclas le dejan (scroll-padding-top): lo que queda detrás de ella cuenta como «atrás»
 const DISPARO = 0.9; // la sección queda «activa» cuando su borde superior ya entró ~10 % de la altura de la pantalla; cada pieza arranca cuando ELLA está a la vista
-const AIRE_ABAJO = 60; // px: una pieza cuenta como «a la vista» si entra en la pantalla sin tocar los últimos 40 px ni la barra
+const AIRE_ABAJO = 60; // px: una pieza cuenta como «a la vista» si entra en la pantalla sin tocar los últimos 60 px ni la barra
 const viaje = (d) => Math.min(130, Math.max(35, d * 0.45)); // ms que tarda un cursor en llegar al inicio del siguiente paso, según la distancia
 
 const paso = (c, t, dur, ruta, partes) => ({ c, t, dur, ruta, partes });
