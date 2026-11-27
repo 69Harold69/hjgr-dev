@@ -944,8 +944,9 @@ function secciones() {
         const hg = Math.max(4, Math.max(...ys) - t);
         const c = document.createElement("div");
         c.className = "arma-centinela";
-        c.style.left = `${l}px`;
-        c.style.top = `${t - (hg - (Math.max(...ys) - t)) / 2}px`;
+        // Siempre DENTRO de la capa (overflow: clip): un centinela recortado (p. ej. el filete en el borde superior de la sección) nunca llegaría a su umbral.
+        c.style.left = `${Math.min(Math.max(l, 0), Math.max(0, caja.width - w))}px`;
+        c.style.top = `${Math.min(Math.max(t - (hg - (Math.max(...ys) - t)) / 2, 0), Math.max(0, caja.height - hg))}px`;
         c.style.width = `${w}px`;
         c.style.height = `${hg}px`;
         c.dataset.estado = "espera";
