@@ -110,7 +110,9 @@ const ESTADO_FINAL = () => {
   if (botones.length !== 2) f.push(`el hero debe tener 2 botones y tiene ${botones.length}`);
   botones.forEach((el, i) => limpio(`botón ${i + 1}`, el));
   document.querySelectorAll(".hero .etapas__item:not(:last-child)").forEach((el, i) => limpio(`línea de la hoja ${i + 1}`, el, "::after"));
-  if (document.querySelector(".entrada, .cursor, .entrada__saltar, .cursores-seccion")) f.push("quedan elementos de la animación en el DOM");
+  // Con el umbral al 10 % (#35) la primera sección ya puede estar armándose cuando termina el hero: sus cursores y el botón «Saltar» que la acompaña no son restos del hero.
+  const armandoSeccion = !!document.querySelector(".cursores-seccion");
+  if (document.querySelector(".entrada, .entrada .cursor") || (!armandoSeccion && document.querySelector(".cursor, .entrada__saltar, .cursores-seccion"))) f.push("quedan elementos de la animación en el DOM");
   const clases = [...document.documentElement.classList].filter((c) => /^(js-entrada|entrada)/.test(c));
   if (clases.length) f.push(`quedan clases en <html>: ${clases.join(" ")}`);
   return f;

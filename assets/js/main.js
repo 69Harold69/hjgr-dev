@@ -612,10 +612,15 @@ function secciones() {
         // La punta nunca se pega al borde de la pantalla (la línea sí llega hasta el final): se queda a 22 px.
         const qx = s.getBoundingClientRect().left;
         const enX = (x) => Math.min(Math.max(x, 10 - qx), innerWidth - 22 - qx);
-        st.ruta.forEach(([dt, x, y], i) => pts.push([viajeK + (i === 0 ? 0 : dt * kk), enX(x), y]));
+        let tPrev = 0;
+        st.ruta.forEach(([dt, x, y], i) => {
+          tPrev = Math.max(tPrev, viajeK + (i === 0 ? 0 : dt * kk)); // los tiempos nunca retroceden (las marcas de etapas pueden ir fuera de orden)
+          pts.push([tPrev, enX(x), y]);
+        });
         const ult = pts[pts.length - 1];
         if (ult[0] < D) pts.push([D, ult[1], ult[2]]);
-        anim(k.c.el, pts.map(([t, x, y]) => ({ transform: `translate(${Math.round(x)}px, ${Math.round(y)}px)`, offset: Math.min(1, t / D) })), { duration: D, fill: "forwards" });
+        const Dm = Math.max(D, ult[0]);
+        anim(k.c.el, pts.map(([t, x, y]) => ({ transform: `translate(${Math.round(x)}px, ${Math.round(y)}px)`, offset: Math.min(1, t / Dm) })), { duration: D, fill: "forwards" });
         if (k.nuevo) {
           k.nuevo = false;
           anim(k.c.el, { opacity: [0, 1] }, { duration: Math.min(90, D), fill: "both" });
