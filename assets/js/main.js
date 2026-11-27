@@ -5,7 +5,8 @@
  *      naranja. Dura 3.9 s; scroll, toque o tecla (menos Tab, salvo que el foco entre al hero) la terminan al instante.
  *   2. Cada sección, una sola vez por carga, cuando entra en pantalla (#31): líneas, bordes, marcas de corte, la línea de las
  *      etapas, el resaltado de la fila del diagnóstico y las capturas dentro de su marco. El texto nunca se esconde.
- *      Máximo 1.4 s por sección (TOPE), 3 cursores (2 en celular, 0.94 s). Lo que queda atrás al hacer scroll rápido se arma al instante.
+ *      Hasta 4 s de animación por sección en escritorio y 2.5 s en celular (TOPE, TOPE_CEL), con 3 cursores en total en pantalla (2 en celular).
+ *      Cada pieza arranca cuando ELLA está a la vista (IntersectionObserver por pieza); las que quedaron arriba se arman al instante; nada se arma por tiempo.
  *   «Saltar» (o Escape) apaga los cursores en TODA la página durante esa visita; en la siguiente carga vuelven (sin memoria).
  * Los estados «desarmados» viven en home.css bajo .js-entrada y .js-secciones. Si algo falla, se quitan las clases y todo queda visible.
  */
@@ -285,12 +286,17 @@ function abandonar() {
    recorrido del cursor (ruta: [ms desde el inicio del paso, x, y]) y las piezas que aparecen mientras tanto (partes: dt y dur dentro del paso).
    De ahí salen, con los MISMOS tiempos y el mismo easing lineal, tanto el recorrido del cursor como la animación de cada pieza:
    la línea crece justo donde va la punta; la marca se pega cuando el cursor llega a la esquina. Nada se anima por separado. */
-const OFF = 120; // ms: lo que tarda el primer cursor en llegar
 const SALIDA = 160; // ms: el cursor se desvanece al final
-const TOPE = 1400; // ms por sección en escritorio (el encargo fija 1500, con la salida del cursor incluida)
-const TOPE_CEL = 940; // ms en celular (el encargo fija 1000)
+const TOPE = 4000; // ms de animación por sección en escritorio (decisión del dueño: se lee como un dibujo, no como un barrido), con la salida del cursor incluida
+const TOPE_CEL = 2500; // ms en celular
+const KMAX = 3; // una sección con pocos pasos no se estira más de 3 veces su ritmo base
+const PAUSA = 110; // ms: pausa breve del cursor entre una pieza y la siguiente (a ritmo 1)
+const PASO_MAX = 700; // ms: ningún paso dura más que esto (así un cursor cede su lugar a otra pieza a la vista en menos de ~1 s)
+const VIAJE_K = 1.6; // el viaje del cursor entre piezas no se estira más que esto
+const MAX_CURSORES = (chico) => (chico ? 2 : 3); // cursores a la vez en TODA la pantalla (cola global)
 const BARRA = 88; // px: la barra fija (72) y el aire que las anclas le dejan (scroll-padding-top): lo que queda detrás de ella cuenta como «atrás»
-const DISPARO = 0.9; // la sección arranca cuando su borde superior ya entró ~10 % de la altura de la pantalla
+const DISPARO = 0.9; // la sección queda «activa» cuando su borde superior ya entró ~10 % de la altura de la pantalla; cada pieza arranca cuando ELLA está a la vista
+const AIRE_ABAJO = 60; // px: una pieza cuenta como «a la vista» si entra en la pantalla sin tocar los últimos 40 px ni la barra
 const viaje = (d) => Math.min(130, Math.max(35, d * 0.45)); // ms que tarda un cursor en llegar al inicio del siguiente paso, según la distancia
 
 const paso = (c, t, dur, ruta, partes) => ({ c, t, dur, ruta, partes });
@@ -303,12 +309,16 @@ function tarjeta(h, c, t, el, marcas = []) {
   const T = 85; // ms por lado
   const S = 110; // ms de la sombra
   const M = 70; // ms por marca
-  const lado = (clase, l, tp, w, hg, kf, dt) => ({ host: h.capa(clase, l, tp, w, hg), kf, dt, dur: T });
+  // El borde se dibuja con el MISMO anillo final (caja de la tarjeta, mismo radio, box-shadow de 1 px) recortado con clip-path por una banda por lado:
+  // al terminar coincide con el anillo real, esquinas redondeadas incluidas.
+  const w = q.w;
+  const hg = q.h;
+  const anillo = (kf, dt) => ({ host: h.capa("arma-capa--anillo", q.l, q.t, w, hg), kf: { clipPath: kf }, dt, dur: T });
   const partes = [
-    lado("", q.l - 1, q.t - 1, q.w + 2, 1, { transform: ["scaleX(0)", "scaleX(1)"] }, 0),
-    lado("arma-capa--v", q.r, q.t - 1, 1, q.h + 2, { transform: ["scaleY(0)", "scaleY(1)"] }, T),
-    lado("arma-capa--der", q.l - 1, q.b, q.w + 2, 1, { transform: ["scaleX(0)", "scaleX(1)"] }, 2 * T),
-    lado("arma-capa--v arma-capa--abajo", q.l - 1, q.t - 1, 1, q.h + 2, { transform: ["scaleY(0)", "scaleY(1)"] }, 3 * T),
+    anillo([`inset(-2px ${w + 2}px ${hg - 4}px -2px)`, `inset(-2px -2px ${hg - 4}px -2px)`], 0),
+    anillo([`inset(-2px -2px ${hg + 2}px ${w - 4}px)`, `inset(-2px -2px -2px ${w - 4}px)`], T),
+    anillo([`inset(${hg - 4}px -2px -2px ${w + 2}px)`, `inset(${hg - 4}px -2px -2px -2px)`], 2 * T),
+    anillo([`inset(${hg + 2}px ${w - 4}px -2px -2px)`, `inset(-2px ${w - 4}px -2px -2px)`], 3 * T),
   ];
   const ruta = [[0, q.l, q.t], [T, q.r, q.t], [2 * T, q.r, q.b], [3 * T, q.l, q.b], [4 * T, q.l, q.t]];
   partes.push({ host: h.capa("arma-capa--sombra", q.l, q.t, q.w, q.h), kf: { opacity: [0, 1] }, dt: 4 * T, dur: S });
@@ -414,17 +424,17 @@ const PLANES = [
         if (q.h > 0) lineas.push([q.b - 1, ""]);
       });
       lineas.sort((a, b) => a[0] - b[0]); // de arriba abajo, sea cual sea el orden del DOM
-      // Serpentina: una línea de izquierda a derecha y la siguiente de derecha a izquierda; el cursor casi no viaja.
+      // Dos cursores se reparten las líneas, cada uno en serpentina (una de izquierda a derecha y la siguiente de derecha a izquierda); casi no viajan.
       lineas.forEach(([y, clase], i) => {
-        const atras = i % 2 === 1;
+        const atras = Math.floor(i / 2) % 2 === 1;
         const host = h.capa(`${clase} ${atras ? "arma-capa--der" : ""}`.trim(), tq.l, y, tq.w, 1);
-        v.push(paso(0, 0, 70, atras ? [[0, tq.r, y], [70, tq.l, y]] : [[0, tq.l, y], [70, tq.r, y]], [{ host, kf: { transform: ["scaleX(0)", "scaleX(1)"] } }]));
+        v.push(paso(i % 2, 0, 150, atras ? [[0, tq.r, y], [150, tq.l, y]] : [[0, tq.l, y], [150, tq.r, y]], [{ host, kf: { transform: ["scaleX(0)", "scaleX(1)"] } }]));
       });
       const fila = s.querySelector(".tabla__destacada");
       const f = h.r(fila);
       const dur = 420;
       if (matchMedia("(max-width: 639.98px)").matches) {
-        v.push(paso(1, 0, dur, [[0, f.l, f.cy], [dur, f.r, f.cy]], [
+        v.push(paso(2, 0, dur, [[0, f.l, f.cy], [dur, f.r, f.cy]], [
           { host: fila, pseudo: "::before", kf: { clipPath: ["inset(0 100% 0 0)", "inset(0 0 0 0)"] }, dt: 0, dur: dur / 2 },
           { host: fila, pseudo: "::after", kf: { clipPath: ["inset(0 100% 0 0)", "inset(0 0 0 0)"] }, dt: dur / 2, dur: dur / 2 },
         ]));
@@ -433,7 +443,7 @@ const PLANES = [
           const q = h.r(celda);
           return { host: celda, pseudo: "::after", kf: { clipPath: ["inset(0 100% 0 0)", "inset(0 0 0 0)"] }, dt: ((q.l - f.l) / f.w) * dur, dur: (q.w / f.w) * dur };
         });
-        v.push(paso(1, 0, dur, [[0, f.l, f.cy], [dur, f.r, f.cy]], partes));
+        v.push(paso(2, 0, dur, [[0, f.l, f.cy], [dur, f.r, f.cy]], partes));
       }
       return v;
     },
@@ -475,8 +485,7 @@ const PLANES = [
 
 function secciones() {
   if (!html.classList.contains("js-secciones")) return;
-  const chico = matchMedia("(max-width: 767.98px)").matches; // mismo corte que usa el sitio para las etapas
-  const tope = chico ? TOPE_CEL : TOPE;
+  const esChico = () => matchMedia("(max-width: 767.98px)").matches; // mismo corte que usa el sitio para las etapas; se reevalúa en cada sección y al cambiar el tamaño
   const lista = [];
   document.querySelectorAll("main > section:not(.hero)").forEach((s) => {
     const p = PLANES.find((x) => s.querySelector(x.busca) || s.matches(x.busca));
@@ -486,8 +495,20 @@ function secciones() {
   html.classList.add("secciones-activa"); // avisa a inicio.js: su respaldo de 4 s ya no corre
 
   const pendientes = new Map(lista.map((x) => [x.s, x]));
-  const vivas = new Map(); // sección -> { terminar }
+  const vivas = new Map(); // sección activa -> { terminar, empujar, final }
   let ojo = null;
+  let ocupados = 0; // cursores con lugar ocupado en TODA la página (cola global: celular 2, escritorio 3)
+  // Cola global: los cursores que ya tienen lugar siguen con lo suyo (o lo ceden si otra pieza espera hace más tiempo) y los lugares libres
+  // se reparten por orden de llegada de la pieza (la que lleva más esperando a la vista va primero), sea de la sección que sea.
+  const despertar = () => {
+    const todas = [...vivas.values()];
+    todas.forEach((v) => v.empujar());
+    while (ocupados < MAX_CURSORES(esChico())) {
+      const c = todas.flatMap((v) => v.espera()).sort((a, b) => a.st.tLista - b.st.tLista)[0];
+      if (!c) break;
+      c.v.arrancar(c.n);
+    }
+  };
 
   const armadaYa = (s) => {
     const v = vivas.get(s);
@@ -497,19 +518,36 @@ function secciones() {
     s.classList.add("armada");
   };
 
+  /* Una sección ACTIVA (su borde superior pasó del ~10 %) no arma nada por tiempo: cada PASO (pieza o grupo de piezas) tiene un centinela
+     que observa un IntersectionObserver propio y espera a que SU pieza esté a la vista. Entonces pide cursor a la cola global y se arma con él.
+     Si la pieza ya quedó arriba de la pantalla se arma al instante, sin cursor. Una pieza que sigue abajo espera sin armar. */
   function animar({ s, p }) {
     pendientes.delete(s);
     if (ojo) ojo.unobserve(s);
+    const chico = esChico();
+    const tope = chico ? TOPE_CEL : TOPE;
     const animaciones = [];
     const relojes = new Set();
+    const observadores = [];
     const capa = document.createElement("div");
     capa.className = "cursores-seccion";
     capa.setAttribute("aria-hidden", "true");
+    const cur = [null, null, null];
+    const tiene = [false, false, false]; // el cursor n tiene un lugar en la cola global
+    const ocupado = [false, false, false]; // el cursor n está en un paso (o en su pausa)
+    const saliendo = [false, false, false];
     let hecho = false;
+    let cerrando = false;
+    let pasos = [];
     const terminar = () => {
       if (hecho) return;
       hecho = true;
       relojes.forEach(clearTimeout);
+      observadores.forEach((o) => o.disconnect());
+      tiene.forEach((t, n) => {
+        if (t) ocupados--;
+        tiene[n] = false;
+      });
       s.classList.add("armada");
       animaciones.forEach((a) => {
         try {
@@ -522,8 +560,10 @@ function secciones() {
       vivas.delete(s);
       sesiones.delete(s);
       if (!sesiones.size) saltarOcultar(1500);
+      despertar();
     };
-    vivas.set(s, { terminar });
+    const sesion = { terminar, empujar: () => {}, espera: () => [], arrancar: () => {}, final: () => {} };
+    vivas.set(s, sesion);
     try {
       const caja = s.getBoundingClientRect();
       const rel = (q) => ({ l: q.left - caja.left, r: q.right - caja.left, t: q.top - caja.top, b: q.bottom - caja.top, w: q.width, h: q.height, cx: q.left - caja.left + q.width / 2, cy: q.top - caja.top + q.height / 2 });
@@ -541,40 +581,45 @@ function secciones() {
         },
       };
       s.append(capa);
-      const pasos = p.plan(s, h);
-      const cursor = (c) => (c < 0 ? -1 : chico ? c % 2 : c);
+      pasos = p.plan(s, h);
+      pasos.forEach((st) => (st.n = st.c < 0 ? -1 : chico ? st.c % 2 : st.c));
+      pasos.sort((a, b) => a.t - b.t);
       // Títulos de la sección: las etiquetas de los cursores no pasan por encima de ellos.
       const titulos = [...s.querySelectorAll("h2, h3, .nombre")].map(h.r).filter((q) => q.w > 0 && q.h > 0);
 
-      // --- Ritmo base: si todos los pasos, en orden y con sus viajes, no caben en el tope, se comprimen parejo (K). ---
-      const fin0 = [null, null, null];
-      let maxFin = 0;
-      pasos.forEach((st) => {
-        st.n = cursor(st.c);
-        let ini = OFF + st.t;
-        if (st.n >= 0) {
-          const [, x0, y0] = st.ruta[0];
-          const ant = fin0[st.n];
-          ini = Math.max(ini, ant ? ant.t + viaje(Math.hypot(x0 - ant.x, y0 - ant.y)) : 90);
-          const u = st.ruta[st.ruta.length - 1];
-          fin0[st.n] = { t: ini + st.dur, x: u[1], y: u[2] };
-        }
-        maxFin = Math.max(maxFin, ini + st.dur);
-      });
-      const LIM = tope - SALIDA - 40; // ms: todo paso termina antes de esto
-      const K = Math.min(1, LIM / maxFin);
-      const T0 = performance.now();
-      const ahora = () => performance.now() - T0;
-
-      // --- Cursores (se crean con el primer paso que de verdad se ve) ---
-      const cur = [null, null, null];
-      // Un paso sale con cursor si su punto de partida ya está a la vista (con margen para que se vean la flecha y la etiqueta). Si más adelante el
-      // recorrido pasa de la pantalla, el cursor simplemente sale de ella siguiendo la pieza; nunca se pega al borde.
-      const dentro = (puntos) => {
-        const q = s.getBoundingClientRect();
-        const [, x, y] = puntos[0];
-        return q.top + y >= BARRA + 8 && q.top + y <= innerHeight - 60 && q.left + x >= -30 && q.left + x <= innerWidth + 30; // la punta se acerca al borde pero no se pega (ver enX)
+      // --- Ritmo: con TODAS las piezas a la vista la sección dura, a lo más, el tope (cada cursor, uno tras otro, con su viaje y su pausa).
+      // Si los pasos base caben con holgura, se estiran (hasta KMAX) para que se lea como un dibujo; si no caben, se comprimen parejo. ---
+      const escala = (st, K) => Math.min(K, PASO_MAX / st.dur); // escala de un paso: el ritmo de la sección, sin pasar de PASO_MAX ms
+      const duracion = (K) => {
+        const fin = [null, null, null];
+        let max = 0;
+        pasos.forEach((st) => {
+          let ini = 0;
+          if (st.n >= 0) {
+            const [, x0, y0] = st.ruta[0];
+            const ant = fin[st.n];
+            ini = ant ? ant.t + PAUSA * Math.min(K, 1.5) + viaje(Math.hypot(x0 - ant.x, y0 - ant.y)) * Math.min(K, VIAJE_K) : 90 * Math.min(K, VIAJE_K);
+            const u = st.ruta[st.ruta.length - 1];
+            fin[st.n] = { t: ini + st.dur * escala(st, K), x: u[1], y: u[2] };
+          }
+          max = Math.max(max, ini + st.dur * escala(st, K));
+        });
+        return max;
       };
+      const LIM = tope * 0.72; // ms: con todo a la vista el último paso termina antes de esto; el resto del tope se lo llevan los viajes a una pieza nueva y la salida de cada cursor
+      let K = KMAX;
+      if (duracion(K) > LIM) {
+        let lo = 0.1;
+        let hi = KMAX;
+        for (let i = 0; i < 14; i++) {
+          const mid = (lo + hi) / 2;
+          if (duracion(mid) > LIM) hi = mid;
+          else lo = mid;
+        }
+        K = lo;
+      }
+      const pausa = PAUSA * Math.min(K, 1.5);
+
       const anim = (el, kf, op, pseudo) => {
         const a = el.animate(kf, { fill: "both", easing: "linear", ...op, ...(pseudo ? { pseudoElement: pseudo } : {}) });
         animaciones.push(a);
@@ -591,13 +636,10 @@ function secciones() {
         return cur[n];
       }
 
-      let finDe = 0; // ms (reloj de la sección) en que termina el último paso que ya salió
-
-      /* Hace un paso: las piezas y, si va con cursor, su recorrido, todo desde los mismos tiempos (ms de la sección, escalados por kk). */
-      function hacer(st, kk, conCursor, vj) {
+      /* Hace un paso: las piezas y, si va con cursor, su recorrido, todo desde los mismos tiempos (ms del paso, escalados por kk; viajeK es lo que
+         tarda el cursor en llegar y las piezas esperan a que llegue). */
+      function hacer(st, kk, viajeK, conCursor) {
         const durK = Math.max(1, st.dur * kk);
-        const viajeK = conCursor ? vj * kk : 0; // las piezas esperan a que el cursor llegue
-        finDe = Math.max(finDe, ahora() + viajeK + durK);
         st.partes.forEach((pt) => {
           const d = pt.dur === undefined ? st.dur - (pt.dt || 0) : pt.dur;
           anim(pt.host, pt.kf, { delay: viajeK + (pt.dt || 0) * kk, duration: Math.max(1, d * kk), easing: pt.easing || "linear" }, pt.pseudo);
@@ -657,67 +699,178 @@ function secciones() {
         k.y = ult[2];
       }
 
-      const colas = [[], [], []];
-      const aparte = [];
-      pasos.forEach((st) => (st.n >= 0 ? colas[st.n] : aparte).push(st));
-      colas.forEach((q) => q.sort((a, b) => a.t - b.t));
-      let forzado = false;
-      let cerrando = false;
-      const pendiente = () => colas.some((q) => q.length) || aparte.length;
+      const marcar = (st, estado) => {
+        st.estado = estado;
+        st.cent.dataset.estado = estado; // solo para las pruebas (el centinela es aria-hidden y no pinta)
+      };
+      const todos = () => pasos.every((st) => st.estado === "hecha" || st.estado === "arriba");
       function cerrar() {
-        if (cerrando || pendiente()) return;
+        if (cerrando || !todos()) return;
         cerrando = true;
-        const espera = Math.max(0, finDe - ahora());
-        relojes.add(setTimeout(() => cur.forEach((k) => k && anim(k.c.el, { opacity: [1, 0] }, { duration: SALIDA, fill: "forwards" })), espera));
-        relojes.add(setTimeout(terminar, espera + SALIDA + 40));
+        [0, 1, 2].forEach(retirar);
+        relojes.add(setTimeout(terminar, SALIDA + 60));
       }
-      /* Cada cursor toma, en orden, el primer paso suyo que YA está a la vista; si no hay ninguno espera a que el scroll lo traiga. */
-      function impulsar(n) {
-        if (hecho || apagado || forzado) return;
-        const cola = colas[n];
-        if (!cola.length) return cerrar();
-        const t = ahora();
-        const st = cola.find((x) => OFF + x.t <= t + 1 && dentro(x.ruta));
-        if (!st) {
-          relojes.add(setTimeout(() => impulsar(n), 30));
-          return;
-        }
-        cola.splice(cola.indexOf(st), 1);
+      /* El cursor n se desvanece y deja su lugar en la cola global. */
+      function retirar(n) {
+        const k = cur[n];
+        if (!k) return;
+        cur[n] = null;
+        saliendo[n] = true;
+        anim(k.c.el, { opacity: [1, 0] }, { duration: SALIDA, fill: "forwards" });
+        relojes.add(
+          setTimeout(() => {
+            k.c.el.remove();
+            saliendo[n] = false;
+            if (tiene[n]) {
+              tiene[n] = false;
+              ocupados--;
+            }
+            despertar();
+          }, SALIDA + 10),
+        );
+      }
+      function ejecutar(st, n) {
+        marcar(st, "corre");
+        st.io.disconnect();
         const k = cur[n];
         const [, x0, y0] = st.ruta[0];
-        const vj = k ? viaje(Math.hypot(x0 - k.x, y0 - k.y)) : 90;
-        const kk = Math.min(K, (LIM - t) / (vj + st.dur));
-        if (kk < 0.3) {
-          hacer(st, Math.max(0.05, (LIM - t) / st.dur), false, 0); // ya no cabe con cursor: se arma sola, rápido
-          return impulsar(n);
-        }
-        hacer(st, kk, true, vj);
-        relojes.add(setTimeout(() => impulsar(n), (vj + st.dur) * kk));
+        // Si varias piezas a la vista esperan a este cursor, sus pasos se aprietan (hasta la mitad) para que la última no espere más de ~1 s.
+        const cola = pasos.filter((x) => x.n === n && x.estado === "lista" && x !== st);
+        const espera = cola.reduce((t, x) => t + x.dur * escala(x, K) + pausa + 60, 0);
+        const ks = escala(st, K) * Math.min(1, Math.max(0.5, 1000 / Math.max(1, espera + st.dur * escala(st, K))));
+        const vj = (k ? viaje(Math.hypot(x0 - k.x, y0 - k.y)) : 90) * Math.min(K, VIAJE_K);
+        hacer(st, ks, vj, true);
+        ocupado[n] = true;
+        relojes.add(
+          setTimeout(() => {
+            marcar(st, "hecha");
+            if (todos()) return cerrar();
+            relojes.add(
+              setTimeout(() => {
+                ocupado[n] = false;
+                despertar(); // este cursor sigue o cede su lugar, y otra sección pudo quedar esperando
+              }, pausa),
+            );
+          }, vj + st.dur * ks),
+        );
       }
+      /* Pieza que quedó arriba de la pantalla (o fuera de la cola): se arma al instante, sin cursor. */
+      function instante(st) {
+        marcar(st, "arriba");
+        hacer(st, 0, 0, false);
+        if (todos()) relojes.add(setTimeout(cerrar, 60));
+      }
+      const siguiente = (n) => pasos.find((x) => x.n === n && x.estado === "lista");
+      /* Cursores que ya tienen lugar: toman, en orden, el primer paso suyo cuya pieza ya está a la vista; si no hay ninguno se retiran, y si otra
+         pieza lleva más tiempo esperando un lugar, ceden el suyo. */
+      sesion.empujar = () => {
+        if (hecho || apagado || cerrando) return;
+        for (let n = 0; n < 3; n++) {
+          if (!tiene[n] || ocupado[n] || saliendo[n]) continue;
+          const st = siguiente(n);
+          if (!st || [...vivas.values()].some((v) => v.espera().some((c) => c.st.tLista < st.tLista))) {
+            retirar(n);
+            continue;
+          }
+          ejecutar(st, n);
+        }
+        pasos.filter((x) => x.n < 0 && x.estado === "lista").forEach((st) => {
+          marcar(st, "corre");
+          hacer(st, K, 0, false);
+          relojes.add(setTimeout(() => (marcar(st, "hecha"), cerrar()), st.dur * K));
+        });
+      };
+      /* Pasos que esperan un lugar de la cola global (su pieza ya está a la vista y su cursor está libre). */
+      sesion.espera = () => {
+        if (hecho || apagado || cerrando) return [];
+        const r = [];
+        for (let n = 0; n < 3; n++) {
+          if (tiene[n] || ocupado[n] || saliendo[n]) continue;
+          const st = siguiente(n);
+          if (st) r.push({ v: sesion, n, st });
+        }
+        return r;
+      };
+      sesion.arrancar = (n) => {
+        const st = siguiente(n);
+        if (!st) return;
+        tiene[n] = true;
+        ocupados++;
+        ejecutar(st, n);
+      };
+
+      /* Un centinela por paso: una caja sobre el recorrido de la pieza. «A la vista» = la pieza (o, si es muy alta, sus primeros ~140 px) entra en la
+         pantalla sin la barra fija de arriba ni los últimos 60 px. */
+      const listoPaso = (st) => {
+        if (st.estado !== "espera") return;
+        marcar(st, "lista");
+        st.tLista = performance.now(); // el IO sigue observando: si antes de su turno la pieza sale de la pantalla, se arma al instante o vuelve a esperar
+        despertar();
+      };
+      pasos.forEach((st) => {
+        st.estado = "espera";
+        const xs = st.ruta.map((r) => r[1]);
+        const ys = st.ruta.map((r) => r[2]);
+        const l = Math.min(...xs);
+        const t = Math.min(...ys);
+        const w = Math.max(4, Math.max(...xs) - l);
+        const hg = Math.max(4, Math.max(...ys) - t);
+        const c = document.createElement("div");
+        c.className = "arma-centinela";
+        c.style.left = `${l}px`;
+        c.style.top = `${t - (hg - (Math.max(...ys) - t)) / 2}px`;
+        c.style.width = `${w}px`;
+        c.style.height = `${hg}px`;
+        c.dataset.estado = "espera";
+        capa.append(c);
+        st.cent = c;
+        const T = Math.min(0.98, Math.min(hg, 140) / hg);
+        st.io = new IntersectionObserver(
+          (es) => {
+            const e = es[es.length - 1];
+            if (st.estado !== "espera" && st.estado !== "lista") return;
+            if (e.isIntersecting && e.intersectionRatio >= T - 0.02) return listoPaso(st);
+            const raiz = e.rootBounds;
+            if (raiz && e.boundingClientRect.top < raiz.top && e.boundingClientRect.bottom <= raiz.top + Math.min(hg, 140)) {
+              // Quedó arriba de la pantalla (aunque ya hubiera estado a la vista esperando su turno): se arma al instante.
+              st.io.disconnect();
+              instante(st);
+            } else if (st.estado === "lista") marcar(st, "espera"); // volvió a salir por abajo: vuelve a esperar a que la vean
+          },
+          { rootMargin: `-${BARRA + 8}px 0px -${AIRE_ABAJO}px 0px`, threshold: [0, T] },
+        );
+        observadores.push(st.io);
+        st.io.observe(c);
+      });
+      // Al final de la página lo que ya no puede subir más se arma donde está, con su cursor (un scroll que se detiene revisa una sola vez).
+      sesion.final = () => {
+        if (hecho) return;
+        pasos.forEach((st) => {
+          if (st.estado !== "espera") return;
+          const q = st.cent.getBoundingClientRect();
+          if (q.bottom <= BARRA + 8) {
+            st.io.disconnect();
+            instante(st);
+          } else if (q.top < innerHeight - 8) listoPaso(st);
+        });
+      };
       sesiones.add(s);
       saltarMostrar();
-      colas.forEach((_, n) => relojes.add(setTimeout(() => impulsar(n), OFF)));
-      aparte.forEach((st) => relojes.add(setTimeout(() => (aparte.splice(aparte.indexOf(st), 1), hacer(st, K, false, 0), cerrar()), OFF + st.t)));
-      // Lo que a ese punto siga sin hacerse (no entró en pantalla a tiempo) se arma solo, de golpe y rápido: nada queda a medias ni con un cursor pegado a un borde.
-      relojes.add(
-        setTimeout(() => {
-          forzado = true;
-          const quedan = [...colas.flat(), ...aparte];
-          colas.forEach((q) => (q.length = 0));
-          aparte.length = 0;
-          quedan.forEach((st) => hacer(st, Math.max(0.05, Math.min(K, (LIM - ahora()) / st.dur)), false, 0));
-          cerrar();
-        }, LIM - 70),
-      );
     } catch (e) {
       terminar();
     }
   }
 
+  const alFinal = () => scrollY + innerHeight >= document.documentElement.scrollHeight - 2;
+  const revisarFinal = () => {
+    if (apagado || !alFinal()) return;
+    [...vivas.values()].forEach((v) => v.final());
+    revisar();
+  };
   const revisar = () => {
     if (apagado) return;
     const alto = innerHeight;
-    const alFinal = scrollY + alto >= document.documentElement.scrollHeight - 2;
+    const final = alFinal();
     for (const x of [...pendientes.values()]) {
       const q = x.s.getBoundingClientRect();
       if (q.bottom <= BARRA + 2) {
@@ -725,10 +878,11 @@ function secciones() {
         continue;
       }
       if (html.classList.contains("js-entrada")) continue; // el hero va primero
-      // Dispara cuando el borde superior de la sección ya entró ~10 % de la altura de la pantalla; al llegar al final de la página, lo que se vea aunque sea menos.
+      // La sección queda activa cuando su borde superior ya entró ~10 % de la altura de la pantalla; al llegar al final de la página, lo que se vea aunque sea menos.
       const visible = Math.min(q.bottom, alto) - Math.max(q.top, BARRA);
-      if (visible > 0 && (q.top <= alto * DISPARO || alFinal)) animar(x);
+      if (visible > 0 && (q.top <= alto * DISPARO || final)) animar(x);
     }
+    if (final) [...vivas.values()].forEach((v) => v.final());
   };
 
   apagar = () => {
@@ -742,14 +896,37 @@ function secciones() {
     saltarOcultar(0);
   };
   addEventListener("keydown", (e) => e.key === "Escape" && apagar());
-  // Foco de teclado en una sección sin armar: se arma al instante.
+  // Foco de teclado en una sección sin armar (o armándose): se arma al instante.
   addEventListener(
     "focusin",
     (e) => {
       const s = e.target instanceof Element && e.target.closest("main > section");
-      if (s && pendientes.has(s)) armadaYa(s);
+      if (s && (pendientes.has(s) || vivas.has(s))) armadaYa(s);
     },
     true,
+  );
+  // Rotar o redimensionar a mitad: las capas quedarían en coordenadas viejas, así que lo que está en curso se completa al instante
+  // (lo que aún no se activó se calcula con el tamaño nuevo y el criterio celular/escritorio se reevalúa al activarse).
+  let ancho0 = innerWidth;
+  let alto0 = innerHeight;
+  addEventListener("resize", () => {
+    if (apagado || (innerWidth === ancho0 && Math.abs(innerHeight - alto0) < 150)) return; // la barra de direcciones del celular no cuenta
+    ancho0 = innerWidth;
+    alto0 = innerHeight;
+    [...vivas.values()].forEach((v) => v.terminar());
+    revisar();
+  });
+  // Volver desde la caché de «atrás/adelante»: lo que quedó a medias se completa.
+  addEventListener("pageshow", (e) => e.persisted && [...vivas.values()].forEach((v) => v.terminar()));
+  // Un scroll que se detiene (una sola revisión, sin lecturas por cuadro): al final de la página arma lo que ya no puede subir más.
+  let espera = 0;
+  addEventListener(
+    "scroll",
+    () => {
+      clearTimeout(espera);
+      espera = setTimeout(revisarFinal, 140);
+    },
+    { passive: true },
   );
 
   const umbrales = Array.from({ length: 21 }, (_, i) => i / 20);
@@ -760,12 +937,12 @@ function secciones() {
   if (pie) ojo.observe(pie); // llegar al final de la página también revisa lo pendiente
   if (html.classList.contains("js-entrada")) {
     // Mientras corre el hero no se arma nada; al terminar se revisa lo que ya está a la vista.
-    const espera = new MutationObserver(() => {
+    const esperaHero = new MutationObserver(() => {
       if (html.classList.contains("js-entrada")) return;
-      espera.disconnect();
+      esperaHero.disconnect();
       revisar();
     });
-    espera.observe(html, { attributes: true, attributeFilter: ["class"] });
+    esperaHero.observe(html, { attributes: true, attributeFilter: ["class"] });
   }
   revisar();
 }

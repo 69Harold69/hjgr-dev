@@ -35,13 +35,14 @@
 */
 import fs from "node:fs";
 import path from "node:path";
-import { AQUI, conPaginas, leerArgs, salir, slug } from "./lib/comun.mjs";
+import { AQUI, RAIZ_REPO, conPaginas, leerArgs, salir, slug } from "./lib/comun.mjs";
 
 const a = leerArgs();
 if (a.ayuda || a.help) salir(0, "Uso: node animaciones.mjs [--raiz DIR] [--solo-secciones] [--solo-saltar]");
+if (a.mutacion || a["solo-lector"]) a["solo-secciones"] = true; // para iterar / demostrar la mutación: solo el lector tranquilo
 const soloPrimero = !!a["solo-primer-cuadro"]; // para iterar: solo 8j (primer cuadro sin armar)
 const soloSaltar = !!a["solo-saltar"]; // para iterar: solo «Saltar animación (Esc)»
-const soloSecciones = !!a["solo-secciones"] || soloSaltar || soloPrimero; // para iterar: salta el hero y las fallas simuladas
+const soloSecciones = !!a["solo-secciones"] || !!a.mutacion || !!a["solo-lector"] || soloSaltar || soloPrimero; // para iterar: salta el hero y las fallas simuladas
 
 const SALIDA_ANIM = path.join(AQUI, "salida/animaciones");
 fs.mkdirSync(SALIDA_ANIM, { recursive: true });
@@ -180,12 +181,18 @@ const ESTADO_ARMADO = () => {
 const SONDA_SECCIONES = () => {
   const S = (window.__sec = { s: {}, props: [], muestras: 0, capas: 0, cursoresVistos: 0, scrollH: false });
   const idx = (el) => [...document.querySelectorAll("main > section")].indexOf(el);
-  const reg = (el) => (S.s[idx(el)] ??= { creada: null, armada: null, armadas: 0, capas: 0, max: 0, cursoresOk: true, texto: [] });
+  const reg = (el) => (S.s[idx(el)] ??= { creada: null, armada: null, armadas: 0, capas: 0, max: 0, cursoresOk: true, texto: [], activo: 0, pasos: [] });
+  const vistosPasos = new WeakSet();
+  let tAnt = performance.now();
   const SEG = new Set(["offset", "computedOffset", "easing", "composite", "transform", "opacity", "clipPath"]); // solo transform, opacity y clip-path
   const propiedades = new Set();
   const mirar = () => {
     const secs = document.querySelectorAll("main > section");
+    const dt = performance.now() - tAnt;
+    tAnt = performance.now();
     secs.forEach((el) => {
+      // Tiempo de animación de la sección = cuadros en que algo suyo se está animando (sin contar las esperas a que su pieza esté a la vista ni las pausas).
+      if (el.querySelector(".cursores-seccion") && el.getAnimations({ subtree: true }).some((a) => a.playState === "running")) reg(el).activo += dt;
       if (el.classList.contains("armada")) {
         const r = reg(el);
         if (r.armada === null) {
@@ -218,6 +225,13 @@ const SONDA_SECCIONES = () => {
     if (document.documentElement.scrollWidth > innerWidth) S.scrollH = true;
     for (const a of document.getAnimations()) {
       const kfs = a.effect && a.effect.getKeyframes ? a.effect.getKeyframes() : [];
+      // Un paso = una animación de transform del cursor (viaje + dibujo): se guarda su duración por sección.
+      const tg = a.effect && a.effect.target;
+      if (tg && tg.classList && tg.classList.contains("cursor") && !a.effect.pseudoElement && kfs.some((k) => k.transform) && !vistosPasos.has(a)) {
+        vistosPasos.add(a);
+        const sec = tg.closest("main > section");
+        if (sec) reg(sec).pasos.push(Math.round(a.effect.getTiming().duration));
+      }
       for (const k of kfs) for (const p of Object.keys(k)) if (!SEG.has(p) && !propiedades.has(p)) propiedades.add(p);
     }
     S.props = [...propiedades];
@@ -264,7 +278,24 @@ const ESTADO_SIN_ARMAR = (n) => {
 /* Sonda de cursores y capas del armado, cuadro a cuadro: etiquetas contra títulos, cursores visibles con el objetivo fuera de pantalla,
    piezas dibujándose a la vista sin un cursor cerca y cuándo empieza a verse cada capa (secuencia). */
 const SONDA_CURSORES = () => {
-  const S = (window.__cur = { muestras: 0, sinCursor: [], etiquetas: [], fuera: [], inicios: {} });
+  const S = (window.__cur = { muestras: 0, sinCursor: [], etiquetas: [], fuera: [], inicios: {}, abajo: [], maxVis: 0, sobre: [], desalineadas: [], armadoAbajo: [], esperas: [], estados: {} });
+  const tLista = new WeakMap();
+  const t00 = performance.now();
+  new MutationObserver((ms) => {
+    for (const m of ms) {
+      const el = m.target;
+      if (!el.classList || !el.classList.contains("arma-centinela")) continue;
+      const e = el.dataset.estado;
+      const t = performance.now() - t00;
+      S.estados[e] = (S.estados[e] || 0) + 1;
+      const r = el.getBoundingClientRect();
+      if (e === "lista") tLista.set(el, t);
+      if (e === "corre" && tLista.has(el)) S.esperas.push(Math.round(t - tLista.get(el)));
+      // Una pieza que se arma estando ABAJO de la pantalla (corre), o una «arriba» que en realidad no lo está.
+      if (e === "corre" && r.top > innerHeight && S.armadoAbajo.length < 6) S.armadoAbajo.push(`pieza armándose por abajo de la pantalla (top ${Math.round(r.top)} > ${innerHeight}) a ${Math.round(t)} ms`);
+      if (e === "arriba" && r.bottom > 100 && S.armadoAbajo.length < 6) S.armadoAbajo.push(`pieza armada «al instante» sin estar arriba (bottom ${Math.round(r.bottom)}) a ${Math.round(t)} ms`);
+    }
+  }).observe(document, { subtree: true, attributes: true, attributeFilter: ["data-estado"] });
   const vistas = new WeakMap();
   const opac = (el) => { let o = 1; for (let n = el; n && n.nodeType === 1; n = n.parentElement) o *= Number(getComputedStyle(n).opacity); return o; };
   const escala = (el) => { const t = getComputedStyle(el).transform; if (t === "none") return 1; const m = new DOMMatrix(t); return Math.min(Math.abs(m.a), Math.abs(m.d)); };
@@ -277,6 +308,9 @@ const SONDA_CURSORES = () => {
     if (scrollY !== yAnt) { yAnt = scrollY; tScroll = ahora; }
     const quieto = ahora - tScroll > 150; // con scroll en curso el cursor se mueve con la página: no se juzga
     const cursores = [...document.querySelectorAll(".cursores-seccion .cursor")].filter((el) => opac(el) > 0.05);
+    const enPantalla = cursores.filter((el) => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; });
+    if (enPantalla.length > S.maxVis) S.maxVis = enPantalla.length;
+    if (enPantalla.length > (innerWidth <= 767 ? 2 : 3) && S.sobre.length < 6) S.sobre.push(`${enPantalla.length} cursores a la vez a ${Math.round(ahora)} ms`);
     const puntas = cursores.map((el) => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, r }; });
     if (cursores.length) S.muestras++;
     const antes = S.puntasAntes || [];
@@ -302,10 +336,15 @@ const SONDA_CURSORES = () => {
       const r = el.getBoundingClientRect();
       if (prog > 0.02 && !vistas.has(el)) {
         vistas.set(el, ahora);
+        if (r.top > innerHeight && S.abajo.length < 6) S.abajo.push(`${nombre} ${el.className.replace("arma-capa", "capa")} empezó a dibujarse por abajo de la pantalla (top ${Math.round(r.top)}) a ${Math.round(ahora)} ms`);
         (S.inicios[nombre] ??= []).push(ahora - (S.base?.[nombre] ?? 0));
         S.base ??= {};
         S.base[nombre] ??= ahora;
         S.inicios[nombre][S.inicios[nombre].length - 1] = ahora - S.base[nombre];
+      }
+      if (el.classList.contains("arma-capa--anillo") && S.desalineadas.length < 6) {
+        const ok = [...sec.querySelectorAll(".captura, .hoja")].some((c) => { const q = c.getBoundingClientRect(); return Math.abs(q.left - r.left) < 1.5 && Math.abs(q.top - r.top) < 1.5 && Math.abs(q.width - r.width) < 1.5 && Math.abs(q.height - r.height) < 1.5; });
+        if (!ok) S.desalineadas.push(`${nombre}: anillo en (${Math.round(r.left)}, ${Math.round(r.top)}) ${Math.round(r.width)}×${Math.round(r.height)} sin tarjeta debajo`);
       }
       const aVista = r.bottom > 90 && r.top < innerHeight - 60 && r.right > 0 && r.left < innerWidth;
       if (!esSombra && prog > 0.04 && prog < 0.96 && aVista && r.width * r.height > 0) {
@@ -602,7 +641,8 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
     for (const vp of soloSaltar ? [] : VIEWPORTS) {
       const en = `@${vp.width}px`;
       const chico = vp.width < 768;
-      const maxMs = chico ? 1000 : 1500;
+      const maxMs = chico ? 2500 : 4000; // tiempo de animación por sección (decisión del dueño): 4 s en escritorio, 2.5 s en celular
+      const minPaso = 250; // ms: un paso (el cursor llega, dibuja) nunca dura menos: se lee como un dibujo, no como un barrido
       const abrirSec = async (opciones = {}, destino = ruta) => {
         const c = await abrir({ viewport: vp, ...opciones });
         await c.ctx.addInitScript(SONDA_SECCIONES);
@@ -620,6 +660,89 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         if (nom === "sistemas") meta = Math.min(meta, s.querySelector(".proceso").getBoundingClientRect().top - 110);
         window.scrollTo(0, window.scrollY + meta);
       }, [i, nombre]);
+
+      // Lector tranquilo: baja por la sección a pasos de ~35 % de la pantalla con pausas de medio segundo (sin saltar a «lo importante»)
+      // hasta que la sección queda armada (o se acaba la página). Devuelve si quedó armada.
+      const leerSeccion = async (page, i, tope = 14000) => {
+        const t0 = Date.now();
+        for (;;) {
+          const r = await page.evaluate((n) => {
+            const s = document.querySelectorAll("main > section")[n];
+            if (s.classList.contains("armada")) return "armada";
+            const q = s.getBoundingClientRect();
+            const alFinal = scrollY + innerHeight >= document.documentElement.scrollHeight - 2;
+            if (q.top > innerHeight * 0.85) scrollTo(0, scrollY + q.top - innerHeight * 0.8);
+            else if (!alFinal && q.bottom > innerHeight * 0.5) scrollBy(0, innerHeight * 0.3);
+            return "sigue";
+          }, i);
+          if (r === "armada") return true;
+          if (Date.now() - t0 > tope) return false;
+          await page.waitForTimeout(450);
+        }
+      };
+
+      const lectorTranquilo = async () => {
+      /* 8m. LECTOR TRANQUILO (sin `irA`: la página se recorre entera a la velocidad de un lector, nunca se sube hasta «lo importante»):
+             rueda a ~333 px/s, pasos con pausas de 1 a 2 s, ~1000 px/s y ~4000 px/s.
+             (a) ninguna pieza pasa de «sin armar» a «armada» estando FUERA de pantalla por abajo (ni una «arriba» que no lo está);
+             (b) toda pieza que se dibuja a la vista tiene un cursor a distancia razonable (y ningún cursor con su objetivo fuera);
+             (c) al final del recorrido todo queda armado;
+             y, en cada cuadro, no hay más cursores en pantalla que el máximo (2 en celular, 3 en escritorio). */
+      for (const modo of a.mutacion ? ["rueda 333 px/s"] : ["rueda 333 px/s", "pasos con pausas de 1 a 2 s", "rueda 1000 px/s", "rueda 4000 px/s"]) {
+        const c = await abrir({ viewport: vp });
+        if (a["mutacion"]) {
+          // Mutación: el armado forzado por tiempo de antes (lo que no está a la vista se arma solo al llegar a un límite).
+          const fuente = fs.readFileSync(path.join(servidor.raiz || RAIZ_REPO, "assets/js/main.js"), "utf8");
+          const ancla = "      sesiones.add(s);\n      saltarMostrar();";
+          if (!fuente.includes(ancla)) throw new Error("la mutación no encontró su ancla en main.js");
+          const mutado = fuente.replace(ancla, "      relojes.add(setTimeout(() => pasos.forEach((st) => { if (st.estado === 'espera') { st.io.disconnect(); instante(st); } }), LIM - 70));\n" + ancla);
+          await c.ctx.route(/\/assets\/js\/main\.js/, (r) => r.fulfill({ ...JS, body: mutado }));
+        }
+        await c.ctx.addInitScript(SONDA_CURSORES);
+        const page = await c.ctx.newPage();
+        await page.goto(servidor.url + ruta, { waitUntil: "load" });
+        await sinAnimacion(page);
+        const total = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
+        if (modo.startsWith("pasos")) {
+          let n = 0;
+          for (let y = 0; y < total + vp.height; y += Math.round(vp.height * 0.55)) {
+            await page.evaluate((yy) => scrollTo(0, yy), Math.min(y, total));
+            await page.waitForTimeout(n++ % 2 ? 2000 : 1000);
+          }
+        } else {
+          const vel = Number(modo.match(/\d+/)[0]);
+          await page.evaluate(([vel, total]) => new Promise((fin) => {
+            let t0 = null;
+            const paso = (t) => { t0 ??= t; const y = Math.min(total, ((t - t0) / 1000) * vel); scrollTo(0, y); if (y < total) requestAnimationFrame(paso); else fin(); };
+            requestAnimationFrame(paso);
+          }), [vel, total]);
+        }
+        // Al final del recorrido todo queda armado (lo último a la vista tarda hasta 4 s en armarse con su cursor).
+        const quedo = await page.waitForFunction(() => [...document.querySelectorAll("main > section:not(.hero)")].every((s) => s.classList.contains("armada") || !s.querySelector(".tabla, .problemas, .proceso, .trabajo, .pasos, .faq, .cierre__titulo")), null, { timeout: 9000, polling: 200 }).then(() => true).catch(() => false);
+        await page.waitForTimeout(400);
+        const R = await page.evaluate(() => window.__cur);
+        const nombre = `lector tranquilo (${modo}) ${en}`;
+        if (!quedo) falla(nombre, `al final del recorrido quedaron secciones sin armar: ${await page.evaluate(() => [...document.querySelectorAll("main > section:not(.hero)")].filter((s) => !s.classList.contains("armada") && s.querySelector(".tabla, .problemas, .proceso, .trabajo, .pasos, .faq, .cierre__titulo")).map((s) => s.id || s.className.split(" ")[0]).join(", "))}`);
+        for (const m of await page.evaluate(ESTADO_ARMADO)) falla(nombre, `al final: ${m}`);
+        for (const m of R.armadoAbajo) falla(nombre, `(a) ${m}`);
+        for (const m of R.abajo) falla(nombre, `(a) ${m}`);
+        for (const m of R.sinCursor) falla(nombre, `(b) pieza dibujándose a la vista sin cursor cerca: ${m}`);
+        for (const m of R.fuera) falla(nombre, `(b) cursor con objetivo fuera de la pantalla: ${m}`);
+        for (const m of R.etiquetas) falla(nombre, `etiqueta sobre un título: ${m}`);
+        for (const m of R.sobre) falla(nombre, `demasiados cursores en pantalla: ${m}`);
+        for (const m of R.desalineadas) falla(nombre, `capa desalineada: ${m}`);
+        if (R.muestras < 20 && !a["mutacion"]) falla(nombre, `casi no hubo cursores (${R.muestras} cuadros): la prueba no vio nada`);
+        const peor = R.esperas.length ? Math.max(...R.esperas) : 0;
+        if (peor > 1800) falla(nombre, `una pieza a la vista esperó ${peor} ms a empezar (objetivo ~1000, máximo tolerado 1800)`);
+        console.log(`  ${nombre}: ${R.muestras} cuadros con cursores, máx ${R.maxVis} a la vez, ${R.esperas.length} pasos con espera (peor ${peor} ms, mediana ${R.esperas.length ? [...R.esperas].sort((x, y) => x - y)[Math.floor(R.esperas.length / 2)] : 0} ms), estados ${JSON.stringify(R.estados)}`);
+        await cerrar(c, `consola lector tranquilo ${en}`);
+      }
+      };
+
+      if (a.mutacion || a["solo-lector"]) {
+        await lectorTranquilo();
+        continue;
+      }
 
       /* 8j. (#35) En el PRIMER cuadro en que cada sección entra en pantalla sus piezas visuales están SIN armar (estilos computados) y al final están armadas.
              Guarda un PNG por sección en salida/animaciones/ (primer cuadro, a mitad y armado). */
@@ -642,7 +765,8 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
             await page.waitForTimeout(chico ? 350 : 550);
             await page.screenshot({ path: `${base}-2-a-mitad.png` });
           }
-          await page.waitForTimeout(chico ? 1400 : 1800);
+          await leerSeccion(page, x.i);
+          await page.waitForTimeout(chico ? 900 : 1200);
           await page.screenshot({ path: `${base}-3-armado.png` });
           const fin = await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; return { armada: s.classList.contains("armada"), anims: s.getAnimations({ subtree: true }).length, capas: s.querySelectorAll(".cursores-seccion").length }; }, x.i);
           if (!fin.armada || fin.anims || fin.capas) falla(`armado al final ${x.nombre} ${en}`, `armada ${fin.armada}, animaciones activas ${fin.anims}, capas ${fin.capas}`);
@@ -706,14 +830,105 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
 
       if (soloPrimero) continue;
 
+      await lectorTranquilo();
+
+      /* 8n. LECTOR QUIETO: se detiene con cada sección apenas pasada del 10 %: nada se arma fuera de pantalla, lo que está a la vista se arma con
+             cursor (ya lo cubre 8l) y las secciones altas (trabajo, precios) NO terminan de armarse solas; al seguir bajando el resto se arma al entrar. */
+      if (!a["mutacion"]) {
+        const c = await abrir({ viewport: vp });
+        await c.ctx.addInitScript(SONDA_CURSORES);
+        const page = await c.ctx.newPage();
+        await page.goto(servidor.url + ruta, { waitUntil: "load" });
+        await sinAnimacion(page);
+        const lista = (await secciones(page)).filter((x) => !x.tinta);
+        for (const x of lista) {
+          await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; window.scrollTo(0, window.scrollY + s.getBoundingClientRect().top - innerHeight * 0.88); }, x.i);
+          await page.waitForTimeout(chico ? 2600 : 4600); // más que el tope de animación: si algo se armara por tiempo ya habría pasado
+          if (/^(trabajo|precios)$/.test(x.nombre)) {
+            const armada = await page.evaluate((n) => document.querySelectorAll("main > section")[n].classList.contains("armada"), x.i);
+            if (armada) falla(`lector quieto ${en}`, `«${x.nombre}» se terminó de armar sola con el lector quieto (sus piezas de abajo debían esperar a entrar en pantalla)`);
+          }
+        }
+        const R = await page.evaluate(() => window.__cur);
+        for (const m of [...R.armadoAbajo, ...R.abajo]) falla(`lector quieto ${en}`, `(a) ${m}`);
+        for (const m of R.sinCursor) falla(`lector quieto ${en}`, `(b) ${m}`);
+        for (const m of R.fuera) falla(`lector quieto ${en}`, `(b) ${m}`);
+        for (const m of R.sobre) falla(`lector quieto ${en}`, m);
+        // Sigue bajando poco a poco: todo lo que quedaba abajo se arma al entrar.
+        for (const x of lista) if (!(await leerSeccion(page, x.i))) falla(`lector quieto ${en}`, `«${x.nombre}» no se armó al seguir bajando`);
+        for (const m of await page.evaluate(ESTADO_ARMADO)) falla(`lector quieto ${en} al seguir bajando`, m);
+        await cerrar(c, `consola lector quieto 2 ${en}`);
+      }
+
+      /* 8o. Redimensionar o rotar a mitad del armado: lo que está en curso se completa al instante (sin capas en coordenadas viejas) y el criterio
+             celular/escritorio se reevalúa para lo que sigue (nunca más de 2 cursores a la vez en celular). */
+      if (!a["mutacion"]) {
+        for (const [ancho2, alto2] of chico ? [[844, 390], [1280, 800]] : [[800, 1280], [390, 844]]) {
+          const c = await abrir({ viewport: vp });
+          await c.ctx.addInitScript(SONDA_CURSORES);
+          const page = await c.ctx.newPage();
+          await page.goto(servidor.url + ruta, { waitUntil: "load" });
+          await sinAnimacion(page);
+          const lista = (await secciones(page)).filter((x) => !x.tinta);
+          const x = lista.find((y) => y.nombre === "trabajo") || lista[1];
+          await irA(page, x.i);
+          await page.waitForTimeout(450);
+          if (!(await page.evaluate(() => !!document.querySelector(".cursores-seccion .arma-capa")))) falla(`redimensionar ${en}→${ancho2}`, "no había capas a mitad del armado");
+          await page.setViewportSize({ width: ancho2, height: alto2 });
+          await page.waitForTimeout(250);
+          const r = await page.evaluate((n) => ({ capas: document.querySelectorAll(".arma-capa, .cursor").length, armada: document.querySelectorAll("main > section")[n].classList.contains("armada") }), x.i);
+          if (r.capas || !r.armada) falla(`redimensionar ${en}→${ancho2}`, `lo que estaba en curso debía completarse al instante (capas/cursores ${r.capas}, armada ${r.armada})`);
+          // Lo que sigue se calcula con el tamaño nuevo y se arma bien.
+          const resto = lista.filter((y) => y.i > x.i);
+          for (const y of resto) if (!(await leerSeccion(page, y.i))) falla(`redimensionar ${en}→${ancho2}`, `«${y.nombre}» no terminó de armarse después de redimensionar`);
+          const R = await page.evaluate(() => window.__cur);
+          for (const m of R.desalineadas) falla(`redimensionar ${en}→${ancho2}`, `capa desalineada: ${m}`);
+          for (const m of R.sobre) falla(`redimensionar ${en}→${ancho2}`, m);
+          for (const m of await page.evaluate(ESTADO_ARMADO)) falla(`redimensionar ${en}→${ancho2} al final`, m);
+          await cerrar(c, `consola redimensionar ${en}→${ancho2}`);
+        }
+      }
+
+      /* 8p. Esquinas: el borde que dibujan las capas es el MISMO anillo del estado final (mismo radio, mismo anillo de 1 px, misma caja), sin salto al terminar. */
+      if (!a["mutacion"]) {
+        const c = await abrir({ viewport: vp });
+        const page = await c.ctx.newPage();
+        await page.goto(servidor.url + ruta, { waitUntil: "load" });
+        await sinAnimacion(page);
+        const lista = (await secciones(page)).filter((x) => !x.tinta);
+        const x = lista.find((y) => y.nombre === "trabajo");
+        if (x) {
+          await irA(page, x.i);
+          await page.waitForTimeout(chico ? 250 : 350);
+          const r = await page.evaluate(() => {
+            const s = document.querySelector("main > section:has(.trabajo)");
+            const caja = s.querySelector(".captura, .hoja");
+            const ring = s.querySelector(".arma-capa--anillo");
+            if (!ring) return { sinAnillo: true };
+            const cc = getComputedStyle(caja);
+            const cr = getComputedStyle(ring);
+            const anillo = (bs) => (bs.match(/rgba?\([^)]*\) 0px 0px 0px 1px/) || [""])[0];
+            return { radioCaja: cc.borderTopLeftRadius, radioAnillo: cr.borderTopLeftRadius, anilloCaja: anillo(cc.boxShadow), anilloCapa: anillo(cr.boxShadow) };
+          });
+          if (r.sinAnillo) falla(`esquinas ${en}`, "no había anillo dibujándose en la tarjeta");
+          else {
+            if (r.radioCaja !== r.radioAnillo || parseFloat(r.radioAnillo) === 0) falla(`esquinas ${en}`, `radio de la capa ${r.radioAnillo} ≠ radio de la tarjeta ${r.radioCaja}`);
+            if (!r.anilloCaja || r.anilloCaja !== r.anilloCapa) falla(`esquinas ${en}`, `anillo de la capa «${r.anilloCapa}» ≠ anillo final «${r.anilloCaja}»`);
+          }
+          await leerSeccion(page, x.i);
+          await page.waitForTimeout(300);
+        }
+        await cerrar(c, `consola esquinas ${en}`);
+      }
+
       /* 8a. Lectura normal: sección por sección. */
       {
         const { c, page } = await abrirSec();
         await sinAnimacion(page);
         const lista = (await secciones(page)).filter((x) => !x.tinta);
         for (const x of lista) {
-          await irA(page, x.i, x.nombre);
-          await page.waitForTimeout(1700);
+          const ok = await leerSeccion(page, x.i);
+          if (!ok) falla(`secciones sección «${x.nombre}» ${en}`, "leída con calma, nunca terminó de armarse");
         }
         const S = await page.evaluate(() => window.__sec);
         for (const x of lista) {
@@ -722,12 +937,15 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
           if (!r || r.armada === null) { falla(`secciones ${nombre}`, "nunca se armó"); continue; }
           if (r.armadas !== 1 || r.capas > 1) falla(`secciones ${nombre}`, `debe armarse una sola vez (armadas ${r.armadas}, capas ${r.capas})`);
           if (r.creada !== null) {
-            const dur = r.armada - r.creada;
-            if (dur > maxMs) falla(`secciones ${nombre}`, `tardó ${dur.toFixed(0)} ms (máximo ${maxMs})`);
-            if (r.max < (chico ? 1 : 2) || r.max > (chico ? 2 : 3)) falla(`secciones ${nombre}`, `${r.max} cursores (se esperan ${chico ? 1 : 2} a ${chico ? 2 : 3})`);
+            const dur = r.activo;
+            if (dur > maxMs) falla(`secciones ${nombre}`, `${dur.toFixed(0)} ms de animación (máximo ${maxMs}, sin contar esperas a que la pieza esté a la vista)`);
+            if (r.max < 1 || r.max > (chico ? 2 : 3)) falla(`secciones ${nombre}`, `${r.max} cursores a la vez (se esperan 1 a ${chico ? 2 : 3})`);
+            const cortos = r.pasos.filter((d) => d < minPaso);
+            if (cortos.length) falla(`secciones ${nombre}`, `pasos demasiado cortos (${cortos.join(", ")} ms; mínimo ${minPaso} ms): se leería como un barrido`);
+            if (r.pasos.some((d) => d > 1500)) falla(`secciones ${nombre}`, `un paso dura ${Math.max(...r.pasos)} ms (máximo 1500: los demás cursores esperarían demasiado)`);
             if (!r.cursoresOk) falla(`secciones ${nombre}`, "los cursores o su capa no son aria-hidden con pointer-events:none");
             for (const m of r.texto) falla(`secciones ${nombre} a mitad de la animación`, `texto escondido: ${m}`);
-            console.log(`  ${nombre}: ${r.max} cursores, ${dur.toFixed(0)} ms`);
+            console.log(`  ${nombre}: ${r.max} cursores, ${dur.toFixed(0)} ms de animación, ${r.pasos.length} pasos de ${Math.min(...r.pasos)} a ${Math.max(...r.pasos)} ms`);
           } else falla(`secciones ${nombre}`, "se armó sin cursores (debía animarse al leerla con calma)");
         }
         if (S.muestras < 20) falla(`secciones ${en}`, `la prueba casi no muestreó la animación (${S.muestras} cuadros)`);
@@ -751,7 +969,9 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         const atras = await page.evaluate(() => [...document.querySelectorAll("main > section:not(.hero):not(.banda--tinta)")].filter((s) => s.getBoundingClientRect().bottom <= 0).map((s) => ({ nombre: s.id || s.className, armada: s.classList.contains("armada"), capa: !!s.querySelector(".cursores-seccion") })));
         if (!atras.length) falla(`scroll rápido ${en}`, "la prueba no dejó secciones atrás");
         for (const x of atras) if (!x.armada || x.capa) falla(`scroll rápido ${en}`, `«${x.nombre}» quedó atrás sin armar (armada ${x.armada}, con cursores ${x.capa})`);
-        await page.waitForTimeout(1700);
+        // Lo que quedó a la vista al final se arma con su cursor (hasta 4 s); lo de atrás ya estaba armado.
+        await page.waitForFunction(() => [...document.querySelectorAll("main > section:not(.hero)")].every((s) => s.classList.contains("armada") || !s.querySelector(".tabla, .problemas, .proceso, .trabajo, .pasos, .faq, .cierre__titulo")), null, { timeout: 8000, polling: 200 }).catch(() => {});
+        await page.waitForTimeout(300);
         for (const m of await page.evaluate(ESTADO_ARMADO)) falla(`scroll rápido ${en} al final`, m);
         const S = await page.evaluate(() => window.__sec);
         for (const [i, r] of Object.entries(S.s)) if (r.armadas > 1) falla(`scroll rápido ${en}`, `sección ${i} armada ${r.armadas} veces`);

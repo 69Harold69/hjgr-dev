@@ -892,6 +892,20 @@
     .arma-capa--v { transform: scaleY(0); transform-origin: center top; }
     .arma-capa--der { transform-origin: right center; }
     .arma-capa--abajo { transform-origin: center bottom; }
+    /* Borde de tarjetas y hojas: el MISMO anillo del estado final (mismo radio, 1 px en box-shadow), recortado con clip-path por una banda por lado. */
+    .arma-capa--anillo {
+      background: none;
+      border-radius: var(--radius);
+      box-shadow: 0 0 0 1px var(--rule);
+      transform: none;
+      clip-path: inset(50%);
+    }
+    /* Centinela de cada paso: una caja invisible sobre su pieza que observa un IntersectionObserver (no pinta ni toma toques). */
+    .arma-centinela {
+      position: absolute;
+      pointer-events: none;
+      visibility: hidden;
+    }
     .arma-capa--sombra {
       background: none;
       border-radius: var(--radius);
