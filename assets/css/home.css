@@ -924,8 +924,8 @@
     .js-secciones main > section:not(.armada) .captura__img { clip-path: polygon(0 0, 0 0, 0 0); }
     /* Tarjetas y hojas: sin sombra ni borde (el borde es un anillo de 1 px en box-shadow, fuera de la caja: sin layout). El fondo se queda:
        el texto conserva su contraste. Borde y sombra los ponen capas del JS (.arma-*) y vuelven los reales al armarse. */
-    .js-secciones main > section:not(.armada) .captura,
-    .js-secciones main > section:not(.armada) .hoja { box-shadow: none; }
+    .js-secciones main > section:not(.armada):not(.hero) .captura,
+    .js-secciones main > section:not(.armada):not(.hero) .hoja { box-shadow: none; } /* el hero nunca recibe .armada: su hoja conserva la sombra */
     /* Precios: borde de arriba y líneas de las filas (las dibuja un cursor con capas del JS) */
     .js-secciones main > section:not(.armada) .tabla { border-top-color: transparent; }
     .js-secciones main > section:not(.armada) .tabla th,

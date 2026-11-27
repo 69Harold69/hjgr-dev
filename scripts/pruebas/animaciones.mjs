@@ -164,7 +164,8 @@ const ESTADO_ARMADO = () => {
     for (const el of sin) if (transp(getComputedStyle(el).backgroundColor)) f.push("fila del diagnóstico sin resaltado");
   }
   // Bordes y sombras reales de tarjetas y hojas, recorte de las capturas, líneas de la tabla.
-  for (const el of document.querySelectorAll("main > section:not(.hero) .captura, main > section:not(.hero) .hoja")) if (getComputedStyle(el).boxShadow === "none") f.push(`${el.className}: sin sombra/borde`);
+  // También la hoja del hero: el estado «sin armar» de las secciones no debe alcanzarla (el hero no se arma con cursores de sección).
+  for (const el of document.querySelectorAll("main .captura, main .hoja")) if (getComputedStyle(el).boxShadow === "none") f.push(`${el.className}: sin sombra/borde`);
   for (const el of document.querySelectorAll(".captura__img")) if (getComputedStyle(el).clipPath !== "none") f.push(`captura__img: recorte ${getComputedStyle(el).clipPath}`);
   for (const el of document.querySelectorAll(".tabla, .tabla th, .tabla td")) {
     const cs = getComputedStyle(el);
