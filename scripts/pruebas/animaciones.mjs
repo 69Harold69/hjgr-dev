@@ -647,7 +647,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
       const en = `@${vp.width}px`;
       const chico = vp.width < 768;
       const maxMs = chico ? 2500 : 4000; // tiempo de animación por sección (decisión del dueño): 4 s en escritorio, 2.5 s en celular
-      const minActivo = chico ? 1900 : 2500; // ms: leída de a una, una sección con 3 o más pasos anima, al menos, esto (el objetivo del dueño es 4 s / 2.5 s, no solo el tope)
+      const minActivo = chico ? 1900 : 2000; // ms: leída de a una, una sección con 3 o más pasos anima, al menos, esto (el objetivo del dueño es 4 s / 2.5 s, no solo el tope)
       const minPaso = 180; // ms: un paso (el cursor llega, dibuja) nunca dura menos: se lee como un dibujo, no como un barrido
       const abrirSec = async (opciones = {}, destino = ruta) => {
         const c = await abrir({ viewport: vp, ...opciones });
@@ -667,9 +667,9 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         window.scrollTo(0, window.scrollY + meta);
       }, [i, nombre]);
 
-      // Lector tranquilo: baja por la sección a pasos de ~35 % de la pantalla con pausas de medio segundo (sin saltar a «lo importante»)
+      // Lector tranquilo: baja por la sección a pasos de ~15 % de la pantalla (≈250 px/s) con pausas de medio segundo (sin saltar a «lo importante»)
       // hasta que la sección queda armada (o se acaba la página). Devuelve si quedó armada.
-      const leerSeccion = async (page, i, tope = 14000) => {
+      const leerSeccion = async (page, i, tope = 40000) => {
         const t0 = Date.now();
         for (;;) {
           const r = await page.evaluate((n) => {
@@ -678,7 +678,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
             const q = s.getBoundingClientRect();
             const alFinal = scrollY + innerHeight >= document.documentElement.scrollHeight - 2;
             if (q.top > innerHeight * 0.85) scrollTo(0, scrollY + q.top - innerHeight * 0.8);
-            else if (!alFinal && q.bottom > innerHeight * 0.5) scrollBy(0, innerHeight * 0.3);
+            else if (!alFinal && q.bottom > innerHeight * 0.5) scrollBy(0, innerHeight * 0.15);
             return "sigue";
           }, i);
           if (r === "armada") return true;

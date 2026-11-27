@@ -776,13 +776,23 @@ function secciones() {
         const espera = cola.reduce((t, x) => t + x.dur * escala(x, K) + pausa + 60, 0);
         const ks0 = escala(st, K);
         const ks1 = Math.max(Math.min(ks0, 220 / st.dur), ks0 * (espera > 0 ? Math.min(1, Math.max(0.4, 1500 / Math.max(1, espera + st.dur * ks0))) : 1)); // nunca por debajo de ~220 ms de dibujo
+        if (k) {
+          // Un cursor que se quedó esperando y quedó fuera de la zona visible (el lector siguió bajando) reaparece junto a su nueva pieza, no en el borde.
+          const q = k.c.el.getBoundingClientRect();
+          if (!(q.top > BARRA - 14 && q.top < innerHeight - 12)) {
+            const cs = s.getBoundingClientRect();
+            k.x = Math.min(Math.max(x0 + 60, 8), innerWidth - cs.left - 40);
+            k.y = Math.min(Math.max(y0 - 40, BARRA - 8 - cs.top), innerHeight - 24 - cs.top);
+          }
+        }
         const vj = (k ? viaje(Math.hypot(x0 - k.x, y0 - k.y)) : 60) * Math.min(K, VIAJE_K);
         // Gobernador: el tiempo real de animación de la sección (con los cursores en paralelo contando una vez) no pasa del tope; si ya se gastó mucho,
         // lo que falta por armar se aprieta (guardando ~260 ms para cada paso que aún no sale).
         const faltan = pasos.filter((x) => x !== st && (x.estado === "espera" || x.estado === "lista")).length;
-        const restante = tope - 2 * SALIDA - 80 - consumido();
+        const restante = tope * (chico ? 0.93 : 1) - 2 * SALIDA - 80 - consumido();
         const tope1 = Math.max(vj + 150, restante - 260 * faltan);
-        const ks = Math.max(0.05, Math.min(ks1, (tope1 - vj) / st.dur));
+        const conEspera = cola.length ? Math.max(180, (chico ? 700 : 900) - vj) / st.dur : Infinity; // con piezas visibles esperando a este cursor el paso se acorta
+        const ks = Math.max(0.05, Math.min(ks1, (tope1 - vj) / st.dur, conEspera));
         st.anims = [];
         actual = st;
         hacer(st, ks, vj, true);
