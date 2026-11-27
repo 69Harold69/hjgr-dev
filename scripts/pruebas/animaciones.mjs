@@ -184,7 +184,7 @@ const ESTADO_ARMADO = () => {
 const SONDA_SECCIONES = () => {
   const S = (window.__sec = { s: {}, props: [], muestras: 0, capas: 0, cursoresVistos: 0, scrollH: false });
   const idx = (el) => [...document.querySelectorAll("main > section")].indexOf(el);
-  const reg = (el) => (S.s[idx(el)] ??= { creada: null, armada: null, armadas: 0, capas: 0, max: 0, cursoresOk: true, texto: [], activo: 0, pasos: [] });
+  const reg = (el) => (S.s[idx(el)] ??= { creada: null, armada: null, armadas: 0, capas: 0, max: 0, cursoresOk: true, texto: [], activo: 0, pasos: [], dibujos: [] });
   const vistosPasos = new WeakSet();
   let tAnt = performance.now();
   const SEG = new Set(["offset", "computedOffset", "easing", "composite", "transform", "opacity", "clipPath"]); // solo transform, opacity y clip-path
@@ -233,7 +233,12 @@ const SONDA_SECCIONES = () => {
       if (tg && tg.classList && tg.classList.contains("cursor") && !a.effect.pseudoElement && kfs.some((k) => k.transform) && !vistosPasos.has(a)) {
         vistosPasos.add(a);
         const sec = tg.closest("main > section");
-        if (sec) reg(sec).pasos.push(Math.round(a.effect.getTiming().duration));
+        if (sec) {
+          const d = a.effect.getTiming().duration;
+          reg(sec).pasos.push(Math.round(d));
+          // Lo que dura el DIBUJO (sin el viaje del cursor hasta la pieza): desde el segundo cuadro clave hasta el final.
+          if (kfs.length > 2) reg(sec).dibujos.push(Math.round(d * (1 - kfs[1].computedOffset)));
+        }
       }
       for (const k of kfs) for (const p of Object.keys(k)) if (!SEG.has(p) && !propiedades.has(p)) propiedades.add(p);
     }
@@ -649,6 +654,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
       const maxMs = chico ? 2500 : 4000; // tiempo de animación por sección (decisión del dueño): 4 s en escritorio, 2.5 s en celular
       const minActivo = chico ? 1900 : 2000; // ms: leída de a una, una sección con 3 o más pasos anima, al menos, esto (el objetivo del dueño es 4 s / 2.5 s, no solo el tope)
       const minPaso = 180; // ms: un paso (el cursor llega, dibuja) nunca dura menos: se lee como un dibujo, no como un barrido
+      const minDibujo = 140; // ms: lo que dura el DIBUJO de un paso, sin el viaje (main.js nunca baja de 150: el gobernador guarda 150 ms por paso). minPaso solo no lo ve: el viaje lo rellena
       const abrirSec = async (opciones = {}, destino = ruta) => {
         const c = await abrir({ viewport: vp, ...opciones });
         await c.ctx.addInitScript(SONDA_SECCIONES);
@@ -701,7 +707,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
           const fuente = fs.readFileSync(path.join(servidor.raiz || RAIZ_REPO, "assets/js/main.js"), "utf8");
           const ancla = "      sesiones.add(s);\n      saltarMostrar();";
           if (!fuente.includes(ancla)) throw new Error("la mutación no encontró su ancla en main.js");
-          const mutado = fuente.replace(ancla, "      relojes.add(setTimeout(() => pasos.forEach((st) => { if (st.estado === 'espera') { st.io.disconnect(); instante(st); } }), LIM - 70));\n" + ancla);
+          const mutado = fuente.replace(ancla, "      relojes.add(setTimeout(() => pasos.forEach((st) => { if (st.estado === 'espera') { st.io.disconnect(); instante(st); } }), tope - 70));\n" + ancla);
           await c.ctx.route(/\/assets\/js\/main\.js/, (r) => r.fulfill({ ...JS, body: mutado }));
         }
         await c.ctx.addInitScript(SONDA_SECCIONES);
@@ -747,6 +753,8 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         for (const [i, r] of Object.entries(SEC)) {
           const cortos = r.pasos.filter((d) => d < minPaso);
           if (cortos.length && modo.startsWith("rueda 333")) falla(nombre, `sección «${nombres[i]}»: pasos de ${cortos.join(", ")} ms (mínimo ${minPaso}); pasos ${r.pasos.join(" ")}`);
+          const flacos = r.dibujos.filter((d) => d < minDibujo);
+          if (flacos.length) falla(nombre, `sección «${nombres[i]}»: el cursor dibuja su pieza en ${flacos.join(", ")} ms (mínimo ${minDibujo}, sin contar el viaje)`);
           if (r.activo > maxMs * 1.35) falla(nombre, `sección «${nombres[i]}»: ${r.activo.toFixed(0)} ms de animación (máximo ${maxMs}, con 35 % de tolerancia por compartir la cola de cursores con otra sección)`);
         }
         const peor = R.esperas.length ? Math.max(...R.esperas) : 0;
@@ -977,6 +985,8 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
             if (r.max < 1 || r.max > (chico ? 2 : 3)) falla(`secciones ${nombre}`, `${r.max} cursores a la vez (se esperan 1 a ${chico ? 2 : 3})`);
             const cortos = r.pasos.filter((d) => d < minPaso);
             if (cortos.length) falla(`secciones ${nombre}`, `pasos demasiado cortos (${cortos.join(", ")} ms; mínimo ${minPaso} ms): se leería como un barrido`);
+            const flacos = r.dibujos.filter((d) => d < minDibujo);
+            if (flacos.length) falla(`secciones ${nombre}`, `dibujos demasiado cortos (${flacos.join(", ")} ms sin el viaje; mínimo ${minDibujo} ms): se leería como un barrido`);
             if (r.pasos.some((d) => d > 2000)) falla(`secciones ${nombre}`, `un paso dura ${Math.max(...r.pasos)} ms (máximo 2000: los demás cursores esperarían demasiado)`);
             if (r.pasos.length >= 3 && dur < minActivo) falla(`secciones ${nombre}`, `solo ${dur.toFixed(0)} ms de animación con ${r.pasos.length} pasos (mínimo ${minActivo}: debe acercarse al objetivo de ${maxMs} ms)`);
             if (!r.cursoresOk) falla(`secciones ${nombre}`, "los cursores o su capa no son aria-hidden con pointer-events:none");
