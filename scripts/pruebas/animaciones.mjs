@@ -864,6 +864,18 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         for (const x of lista) {
           await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; window.scrollTo(0, window.scrollY + s.getBoundingClientRect().top - innerHeight * 0.88); }, x.i);
           await page.waitForTimeout(chico ? 2600 : 4600); // más que el tope de animación: si algo se armara por tiempo ya habría pasado
+          // Con el lector quieto, toda pieza que está a la vista (su centinela entero dentro de la zona observada) termina por salir de la espera:
+          // ninguna se queda sin armar para siempre (p. ej. un centinela recortado por la capa que nunca llega a su umbral).
+          const quietas = await page.waitForFunction((n) => {
+            const s = document.querySelectorAll("main > section")[n];
+            const malas = [...s.querySelectorAll(".arma-centinela")].filter((c) => {
+              if (c.dataset.estado !== "espera" && c.dataset.estado !== "lista") return false;
+              const q = c.getBoundingClientRect();
+              return q.top >= 96 && q.bottom <= innerHeight - 60 && q.left >= 0 && q.right <= innerWidth;
+            });
+            return malas.length ? false : true;
+          }, x.i, { timeout: 4500, polling: 150 }).then(() => null).catch(() => page.evaluate((n) => [...document.querySelectorAll("main > section")[n].querySelectorAll(".arma-centinela")].filter((c) => /espera|lista/.test(c.dataset.estado)).map((c) => { const q = c.getBoundingClientRect(); return `${c.dataset.estado} en (${Math.round(q.left)}, ${Math.round(q.top)}) ${Math.round(q.width)}×${Math.round(q.height)}`; }).join("; "), x.i));
+          if (quietas) falla(`lector quieto ${en}`, `«${x.nombre}»: piezas a la vista que siguen sin armar 9 s después con el lector quieto: ${quietas}`);
           if (/^(trabajo|precios)$/.test(x.nombre)) {
             const armada = await page.evaluate((n) => document.querySelectorAll("main > section")[n].classList.contains("armada"), x.i);
             if (armada) falla(`lector quieto ${en}`, `«${x.nombre}» se terminó de armar sola con el lector quieto (sus piezas de abajo debían esperar a entrar en pantalla)`);
