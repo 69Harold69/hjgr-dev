@@ -292,6 +292,7 @@ const TOPE_CEL = 2500; // ms en celular
 const KMAX = 3; // una sección con pocos pasos no se estira más de 3 veces su ritmo base
 const PAUSA = 110; // ms: pausa breve del cursor entre una pieza y la siguiente (a ritmo 1)
 const PASO_MAX = 700; // ms: ningún paso dura más que esto (así un cursor cede su lugar a otra pieza a la vista en menos de ~1 s)
+const GRACIA = 450; // ms: un cursor sin pieza a la vista espera esto antes de irse
 const VIAJE_K = 1.6; // el viaje del cursor entre piezas no se estira más que esto
 const MAX_CURSORES = (chico) => (chico ? 2 : 3); // cursores a la vez en TODA la pantalla (cola global)
 const BARRA = 88; // px: la barra fija (72) y el aire que las anclas le dejan (scroll-padding-top): lo que queda detrás de ella cuenta como «atrás»
@@ -301,6 +302,24 @@ const viaje = (d) => Math.min(130, Math.max(35, d * 0.45)); // ms que tarda un c
 
 const paso = (c, t, dur, ruta, partes) => ({ c, t, dur, ruta, partes });
 const linea = (c, host, pseudo, t, dur, x0, x1, y, eje = "scaleX") => paso(c, t, dur, [[0, x0, y], [dur, x1, y]], [{ host, pseudo, kf: { transform: [`${eje}(0)`, `${eje}(1)`] } }]);
+
+/* Une dos pasos en uno (el cursor termina el primero, viaja un momento y sigue con el segundo): menos pausas y menos entradas y salidas de cursor. */
+function unir(a, b, gap = 70) {
+  const off = a.dur + gap;
+  const partes = a.partes.map((x) => ({ ...x, dur: x.dur === undefined ? a.dur - (x.dt || 0) : x.dur }));
+  b.partes.forEach((x) => partes.push({ ...x, dt: (x.dt || 0) + off, dur: x.dur === undefined ? b.dur - (x.dt || 0) : x.dur }));
+  return paso(a.c, a.t, off + b.dur, [...a.ruta, ...b.ruta.map(([t, x, y, e]) => [t + off, x, y, e])], partes);
+}
+/* Agrupa pasos de dos en dos (cada par con el cursor que le toque: de dos en dos y alternando). */
+const pares = (lista, c0 = 0, alterna = 2) => {
+  const r = [];
+  for (let i = 0; i < lista.length; i += 2) {
+    const u = lista[i + 1] ? unir(lista[i], lista[i + 1]) : lista[i];
+    u.c = (c0 + (i / 2) % alterna) % 3;
+    r.push(u);
+  }
+  return r;
+};
 
 /* Tarjeta u hoja de una sola pasada: el cursor recorre el borde (cuatro lados, cada uno se dibuja detrás de la punta), después aparece la sombra
    (capa con opacidad) y, si la tarjeta lleva marcas de corte, el cursor pasa por cada esquina y la marca se pega ahí. */
@@ -344,11 +363,11 @@ const PLANES = [
       const ol = s.querySelector(".problemas");
       const o = h.r(ol);
       const v = [linea(0, ol, "::before", 0, 420, o.l, o.r, o.t)];
-      [...ol.querySelectorAll(".problemas__fila")].forEach((f, i) => {
+      const filas = [...ol.querySelectorAll(".problemas__fila")].map((f, i) => {
         const q = h.r(f);
-        v.push(linea(1 + (i % 2), f, "::after", 60 + i * 60, 330, q.l, q.r, q.b));
+        return linea(1, f, "::after", 60 + i * 60, 330, q.l, q.r, q.b);
       });
-      return v;
+      return v.concat(pares(filas, 1));
     },
   },
   {
@@ -369,12 +388,13 @@ const PLANES = [
       marcas.forEach((el, i) => partes.push({ host: el, kf: { opacity: [0, 1] }, dt: fr[i] * dur, dur: 200 }));
       const v = [paso(0, 0, dur, m.map((q, i) => [fr[i] * dur, q.cx, q.cy]), partes)];
       const filas = [...s.querySelectorAll(".fila")];
+      const lineas = [];
       filas.forEach((f, i) => {
         const q = h.r(f);
-        v.push(linea(1 + (i % 2), f, "::before", 60 + i * 70, 260, q.l, q.r, q.t));
-        if (i === filas.length - 1) v.push(linea(1 + (i % 2), f, "::after", 60 + i * 70 + 90, 260, q.l, q.r, q.b));
+        lineas.push(linea(1, f, "::before", 60 + i * 70, 260, q.l, q.r, q.t));
+        if (i === filas.length - 1) lineas.push(linea(1, f, "::after", 60 + i * 70 + 90, 260, q.l, q.r, q.b));
       });
-      return v;
+      return v.concat(pares(lineas, 1));
     },
   },
   {
@@ -387,11 +407,12 @@ const PLANES = [
         const img = card.querySelector(".captura__img");
         const marco = h.r(card.querySelector(".captura__marco"));
         // Frente en diagonal: la punta recorre la diagonal del marco y el clip-path (un triángulo que crece) la sigue.
-        v.push(paso(2, i * 20, 300, [[0, marco.l, marco.t], [300, marco.r, marco.b]], [{ host: img, kf: { clipPath: ["polygon(0 0, 0 0, 0 0)", "polygon(0 0, 200% 0, 0 200%)"] } }]));
-      });
-      [...s.querySelectorAll(".trabajo .captura__cuerpo")].forEach((cuerpo, i) => {
-        const c = h.r(cuerpo);
-        v.push(linea(2, cuerpo, "::before", 60 + i * 20, 160, c.l, c.r, c.t));
+        const diag = paso(2, i * 20, 300, [[0, marco.l, marco.t], [300, marco.r, marco.b]], [{ host: img, kf: { clipPath: ["polygon(0 0, 0 0, 0 0)", "polygon(0 0, 200% 0, 0 200%)"] } }]);
+        const cuerpo = card.querySelector(".captura__cuerpo");
+        if (cuerpo) {
+          const c = h.r(cuerpo);
+          v.push(unir(diag, linea(2, cuerpo, "::before", 60 + i * 20, 160, c.l, c.r, c.t), 50));
+        } else v.push(diag);
       });
       return v;
     },
@@ -402,11 +423,11 @@ const PLANES = [
     plan(s, h) {
       const v = [];
       [...s.querySelectorAll(".paso")].forEach((p, i) => {
-        v.push(tarjeta(h, i % 2, 0, p));
+        const tj = tarjeta(h, i % 2, 0, p);
         const q = h.r(p);
         const cs = getComputedStyle(p);
         const y = q.t + parseFloat(cs.paddingTop) + parseFloat(getComputedStyle(p, "::before").height) + parseFloat(getComputedStyle(p, "::before").paddingBottom);
-        v.push(linea(2, p, "::after", 40 + i * 20, 200, q.l + parseFloat(cs.paddingLeft), q.r - parseFloat(cs.paddingRight), y));
+        v.push(unir(tj, linea(2, p, "::after", 40 + i * 20, 200, q.l + parseFloat(cs.paddingLeft), q.r - parseFloat(cs.paddingRight), y), 60));
       });
       return v;
     },
@@ -424,12 +445,13 @@ const PLANES = [
         if (q.h > 0) lineas.push([q.b - 1, ""]);
       });
       lineas.sort((a, b) => a[0] - b[0]); // de arriba abajo, sea cual sea el orden del DOM
-      // Dos cursores se reparten las líneas, cada uno en serpentina (una de izquierda a derecha y la siguiente de derecha a izquierda); casi no viajan.
-      lineas.forEach(([y, clase], i) => {
-        const atras = Math.floor(i / 2) % 2 === 1;
+      // Las líneas se trazan de dos en dos, en serpentina (una de izquierda a derecha y la siguiente de derecha a izquierda); los pares se reparten entre dos cursores.
+      const trazos = lineas.map(([y, clase], i) => {
+        const atras = i % 2 === 1;
         const host = h.capa(`${clase} ${atras ? "arma-capa--der" : ""}`.trim(), tq.l, y, tq.w, 1);
-        v.push(paso(i % 2, 0, 150, atras ? [[0, tq.r, y], [150, tq.l, y]] : [[0, tq.l, y], [150, tq.r, y]], [{ host, kf: { transform: ["scaleX(0)", "scaleX(1)"] } }]));
+        return paso(0, 0, 200, atras ? [[0, tq.r, y], [200, tq.l, y]] : [[0, tq.l, y], [200, tq.r, y]], [{ host, kf: { transform: ["scaleX(0)", "scaleX(1)"] } }]);
       });
+      pares(trazos, 0).forEach((u) => v.push(u));
       const fila = s.querySelector(".tabla__destacada");
       const f = h.r(fila);
       const dur = 420;
@@ -464,11 +486,11 @@ const PLANES = [
       const faq = s.querySelector(".faq");
       const f = h.r(faq);
       v.push(linea(1, faq, "::before", 0, 380, f.l, f.r, f.t));
-      [...faq.querySelectorAll(".faq__item")].forEach((it, i) => {
+      const items = [...faq.querySelectorAll(".faq__item")].map((it, i) => {
         const q = h.r(it);
-        v.push(linea(1 + (i % 2), it, "::after", 60 + i * 60, 280, q.l, q.r, q.b));
+        return linea(1, it, "::after", 60 + i * 60, 280, q.l, q.r, q.b);
       });
-      return v;
+      return v.concat(pares(items, 1));
     },
   },
   {
@@ -536,6 +558,7 @@ function secciones() {
     const tiene = [false, false, false]; // el cursor n tiene un lugar en la cola global
     const ocupado = [false, false, false]; // el cursor n está en un paso (o en su pausa)
     const saliendo = [false, false, false];
+    const gracia = [0, 0, 0]; // temporizador: un cursor sin pieza a la vista espera un momento antes de irse (si llega otra, sigue sin salir y volver a entrar)
     let hecho = false;
     let cerrando = false;
     let pasos = [];
@@ -562,7 +585,7 @@ function secciones() {
       if (!sesiones.size) saltarOcultar(1500);
       despertar();
     };
-    const sesion = { terminar, empujar: () => {}, espera: () => [], arrancar: () => {}, final: () => {} };
+    const sesion = { terminar, empujar: () => {}, espera: () => [], arrancar: () => {}, final: () => {}, limpiar: () => {}, arriba: () => {} };
     vivas.set(s, sesion);
     try {
       const caja = s.getBoundingClientRect();
@@ -587,26 +610,24 @@ function secciones() {
       // Títulos de la sección: las etiquetas de los cursores no pasan por encima de ellos.
       const titulos = [...s.querySelectorAll("h2, h3, .nombre")].map(h.r).filter((q) => q.w > 0 && q.h > 0);
 
-      // --- Ritmo: con TODAS las piezas a la vista la sección dura, a lo más, el tope (cada cursor, uno tras otro, con su viaje y su pausa).
+      // --- Ritmo: la suma de lo que dura cada paso (viaje + dibujo) cabe en el tope de la sección.
       // Si los pasos base caben con holgura, se estiran (hasta KMAX) para que se lea como un dibujo; si no caben, se comprimen parejo. ---
       const escala = (st, K) => Math.min(K, PASO_MAX / st.dur); // escala de un paso: el ritmo de la sección, sin pasar de PASO_MAX ms
       const duracion = (K) => {
+        // La suma del tiempo de animación de la sección: el viaje del cursor a cada pieza más lo que tarda en dibujarla (los cursores se reparten las piezas,
+        // pero con piezas que llegan una a una o con la cola global llena corren una tras otra, así que se cuenta todo como si fuera en fila).
         const fin = [null, null, null];
-        let max = 0;
+        let suma = 0;
         pasos.forEach((st) => {
-          let ini = 0;
-          if (st.n >= 0) {
-            const [, x0, y0] = st.ruta[0];
-            const ant = fin[st.n];
-            ini = ant ? ant.t + PAUSA * Math.min(K, 1.5) + viaje(Math.hypot(x0 - ant.x, y0 - ant.y)) * Math.min(K, VIAJE_K) : 90 * Math.min(K, VIAJE_K);
-            const u = st.ruta[st.ruta.length - 1];
-            fin[st.n] = { t: ini + st.dur * escala(st, K), x: u[1], y: u[2] };
-          }
-          max = Math.max(max, ini + st.dur * escala(st, K));
+          const ant = st.n >= 0 ? fin[st.n] : null;
+          const [, x0, y0] = st.ruta[0];
+          const vj = (ant ? viaje(Math.hypot(x0 - ant.x, y0 - ant.y)) : 60) * Math.min(K, VIAJE_K);
+          suma += vj + st.dur * escala(st, K);
+          if (st.n >= 0) fin[st.n] = { x: st.ruta[st.ruta.length - 1][1], y: st.ruta[st.ruta.length - 1][2] };
         });
-        return max;
+        return suma;
       };
-      const LIM = tope * 0.72; // ms: con todo a la vista el último paso termina antes de esto; el resto del tope se lo llevan los viajes a una pieza nueva y la salida de cada cursor
+      const LIM = (tope - SALIDA - 40) * 0.88; // el resto del tope: la salida de los cursores (entre piezas muy espaciadas cada cursor sale y vuelve a entrar) // ms: con todo a la vista el último paso termina antes de esto; el resto del tope se lo llevan los viajes a una pieza nueva y la salida de cada cursor
       let K = KMAX;
       if (duracion(K) > LIM) {
         let lo = 0.1;
@@ -620,9 +641,11 @@ function secciones() {
       }
       const pausa = PAUSA * Math.min(K, 1.5);
 
+      let actual = null; // paso que está creando sus animaciones (para poder terminarlas de golpe)
       const anim = (el, kf, op, pseudo) => {
         const a = el.animate(kf, { fill: "both", easing: "linear", ...op, ...(pseudo ? { pseudoElement: pseudo } : {}) });
         animaciones.push(a);
+        if (actual) actual.anims.push(a);
         return a;
       };
       const CANDIDATAS = (w, hg) => [[0, 0], [-(w + 19), 0], [0, -(hg + 26)], [-(w + 19), -(hg + 26)], [0, 38], [-(w + 19), 38]];
@@ -649,17 +672,19 @@ function secciones() {
         const [, x0, y0] = st.ruta[0];
         if (!k) {
           const q = s.getBoundingClientRect();
-          k = crear(st.n, Math.min(Math.max(x0 + 90, 8), innerWidth - q.left - 40), y0 + (q.top + y0 - 40 >= BARRA ? -40 : 40));
+          k = crear(st.n, Math.min(Math.max(x0 + 60, 8), innerWidth - q.left - 40), y0 + (q.top + y0 - 40 >= BARRA ? -40 : 40));
         }
         const D = viajeK + durK;
         const pts = [[0, k.x, k.y]];
         // La punta nunca se pega al borde de la pantalla (la línea sí llega hasta el final): se queda a 22 px.
         const qx = s.getBoundingClientRect().left;
         const enX = (x) => Math.min(Math.max(x, 10 - qx), innerWidth - 22 - qx);
+        const qy = s.getBoundingClientRect().top;
+        const enY = (y) => Math.min(Math.max(y, BARRA - 8 - qy), innerHeight - 24 - qy); // tampoco se pega al borde de arriba ni al de abajo (el trazo de una pieza alta sigue fuera de la pantalla)
         let tPrev = 0;
         st.ruta.forEach(([dt, x, y], i) => {
           tPrev = Math.max(tPrev, viajeK + (i === 0 ? 0 : dt * kk)); // los tiempos nunca retroceden (las marcas de etapas pueden ir fuera de orden)
-          pts.push([tPrev, enX(x), y]);
+          pts.push([tPrev, enX(x), enY(y)]);
         });
         const ult = pts[pts.length - 1];
         if (ult[0] < D) pts.push([D, ult[1], ult[2]]);
@@ -672,7 +697,7 @@ function secciones() {
         // Etiqueta: cambia de lado (o se oculta) en saltos para no pasar sobre un título; se decide por muestras cada ~10 ms.
         const cand = CANDIDATAS(k.w, k.hg);
         const marcos = [];
-        const nm = Math.max(1, Math.ceil(D / 10));
+        const nm = Math.max(1, Math.ceil(D / 8));
         const en = (t) => {
           for (let i = 1; i < pts.length; i++) {
             if (t <= pts[i][0] || i === pts.length - 1) {
@@ -688,7 +713,8 @@ function secciones() {
         for (let j = 0; j <= nm; j++) {
           const [x, y] = en((D * j) / nm);
           const [x2, y2] = en(Math.min(D, (D * (j + 1)) / nm));
-          const libre = (idx) => [[x, y], [x2, y2]].every(([px, py]) => !choca(px + 15 + cand[idx][0], py + 20 + cand[idx][1], k.w, k.hg));
+          const [xm, ym] = en((D * (j + 0.5)) / nm);
+          const libre = (idx) => [[x, y], [xm, ym], [x2, y2]].every(([px, py]) => !choca(px + 15 + cand[idx][0], py + 20 + cand[idx][1], k.w, k.hg));
           const el = libre(ci) ? ci : cand.findIndex((_, idx) => libre(idx));
           if (el >= 0) ci = el;
           marcos.push({ offset: j / nm, transform: `translate(${cand[ci][0]}px, ${cand[ci][1]}px)`, opacity: el >= 0 ? 1 : 0, easing: "steps(1, jump-end)" });
@@ -711,12 +737,12 @@ function secciones() {
         relojes.add(setTimeout(terminar, SALIDA + 60));
       }
       /* El cursor n se desvanece y deja su lugar en la cola global. */
-      function retirar(n) {
+      function retirar(n, rapido = false) {
         const k = cur[n];
         if (!k) return;
         cur[n] = null;
         saliendo[n] = true;
-        anim(k.c.el, { opacity: [1, 0] }, { duration: SALIDA, fill: "forwards" });
+        anim(k.c.el, { opacity: [1, 0] }, { duration: rapido ? 1 : SALIDA, fill: "forwards" });
         relojes.add(
           setTimeout(() => {
             k.c.el.remove();
@@ -734,25 +760,44 @@ function secciones() {
         st.io.disconnect();
         const k = cur[n];
         const [, x0, y0] = st.ruta[0];
-        // Si varias piezas a la vista esperan a este cursor, sus pasos se aprietan (hasta la mitad) para que la última no espere más de ~1 s.
+        // Si varias piezas a la vista esperan a este cursor, sus pasos se aprietan (hasta un 40 %) para que la última no espere más de ~1 s.
         const cola = pasos.filter((x) => x.n === n && x.estado === "lista" && x !== st);
         const espera = cola.reduce((t, x) => t + x.dur * escala(x, K) + pausa + 60, 0);
-        const ks = escala(st, K) * Math.min(1, Math.max(0.5, 1000 / Math.max(1, espera + st.dur * escala(st, K))));
-        const vj = (k ? viaje(Math.hypot(x0 - k.x, y0 - k.y)) : 90) * Math.min(K, VIAJE_K);
+        const ks0 = escala(st, K);
+        const ks = Math.max(Math.min(ks0, 220 / st.dur), ks0 * Math.min(1, Math.max(0.4, 1000 / Math.max(1, espera + st.dur * ks0)))); // nunca por debajo de ~220 ms de dibujo
+        const vj = (k ? viaje(Math.hypot(x0 - k.x, y0 - k.y)) : 60) * Math.min(K, VIAJE_K);
+        st.anims = [];
+        actual = st;
         hacer(st, ks, vj, true);
+        actual = null;
         ocupado[n] = true;
-        relojes.add(
-          setTimeout(() => {
-            marcar(st, "hecha");
-            if (todos()) return cerrar();
-            relojes.add(
-              setTimeout(() => {
-                ocupado[n] = false;
-                despertar(); // este cursor sigue o cede su lugar, y otra sección pudo quedar esperando
-              }, pausa),
-            );
-          }, vj + st.dur * ks),
-        );
+        const alFinal = () => {
+          marcar(st, "hecha");
+          if (todos()) return cerrar();
+          relojes.add(
+            setTimeout(() => {
+              ocupado[n] = false;
+              despertar(); // este cursor sigue o cede su lugar, y otra sección pudo quedar esperando
+            }, pausa * Math.min(1, ks / ks0)), // con piezas esperando la pausa también se acorta
+          );
+        };
+        st.reloj = setTimeout(alFinal, vj + st.dur * ks);
+        relojes.add(st.reloj);
+        // El lector dejó de bajar y esta pieza quedó fuera de la pantalla a medio dibujar: se termina de golpe (sin cursor visible apuntando a un lugar que no se ve).
+        st.apurar = () => {
+          clearTimeout(st.reloj);
+          st.anims.forEach((a) => {
+            try {
+              a.finish();
+            } catch (e) {
+              /* nada */
+            }
+          });
+          marcar(st, "hecha");
+          ocupado[n] = false;
+          if (todos()) return cerrar();
+          retirar(n, true);
+        };
       }
       /* Pieza que quedó arriba de la pantalla (o fuera de la cola): se arma al instante, sin cursor. */
       function instante(st) {
@@ -768,11 +813,24 @@ function secciones() {
         for (let n = 0; n < 3; n++) {
           if (!tiene[n] || ocupado[n] || saliendo[n]) continue;
           const st = siguiente(n);
-          if (!st || [...vivas.values()].some((v) => v.espera().some((c) => c.st.tLista < st.tLista))) {
-            retirar(n);
+          if (st && ![...vivas.values()].some((v) => v.espera().some((c) => c.st.tLista < st.tLista))) {
+            clearTimeout(gracia[n]);
+            gracia[n] = 0;
+            ejecutar(st, n);
             continue;
           }
-          ejecutar(st, n);
+          const otraEspera = [...vivas.values()].some((v) => v.espera().length);
+          const q = cur[n] && cur[n].c.el.getBoundingClientRect();
+          const enPantalla = q && q.top > BARRA && q.bottom < innerHeight && q.right > 0 && q.left < innerWidth;
+          if (st || otraEspera || !enPantalla) {
+            retirar(n); // cede su lugar, o se quedó fuera de la pantalla
+          } else if (!gracia[n]) {
+            gracia[n] = setTimeout(() => {
+              gracia[n] = 0;
+              if (!hecho && !ocupado[n] && !siguiente(n)) retirar(n);
+            }, GRACIA);
+            relojes.add(gracia[n]);
+          }
         }
         pasos.filter((x) => x.n < 0 && x.estado === "lista").forEach((st) => {
           marcar(st, "corre");
@@ -790,6 +848,34 @@ function secciones() {
           if (st) r.push({ v: sesion, n, st });
         }
         return r;
+      };
+      // Un cursor ocioso que quedó fuera de la pantalla (el lector siguió bajando) se va.
+      sesion.limpiar = () => {
+        if (hecho || cerrando) return;
+        for (let n = 0; n < 3; n++) {
+          if (tiene[n] && ocupado[n] && cur[n]) {
+            const st = pasos.find((x) => x.n === n && x.estado === "corre");
+            const q = cur[n].c.el.getBoundingClientRect();
+            if (st && st.apurar && (q.top < BARRA - 14 || q.top > innerHeight - 12 || q.left < -2 || q.left > innerWidth - 10)) st.apurar();
+            continue;
+          }
+          if (!tiene[n] || ocupado[n] || saliendo[n] || !cur[n] || siguiente(n)) continue;
+          const q = cur[n].c.el.getBoundingClientRect();
+          if (!(q.top > BARRA && q.bottom < innerHeight && q.right > 0 && q.left < innerWidth)) retirar(n, true); // en el borde de la pantalla: se va sin desvanecerse
+        }
+      };
+      // Un salto de scroll (ancla, fin, un gesto rápido) puede llevar una pieza de abajo a arriba sin pasar por la zona que ve el IntersectionObserver
+      // y entonces no avisa: al detenerse el scroll se revisan las piezas que siguen esperando.
+      sesion.arriba = () => {
+        if (hecho) return;
+        pasos.forEach((st) => {
+          if (st.estado !== "espera" && st.estado !== "lista") return;
+          const q = st.cent.getBoundingClientRect();
+          if (q.bottom <= BARRA + 8) {
+            st.io.disconnect();
+            instante(st);
+          }
+        });
       };
       sesion.arrancar = (n) => {
         const st = siguiente(n);
@@ -863,9 +949,10 @@ function secciones() {
 
   const alFinal = () => scrollY + innerHeight >= document.documentElement.scrollHeight - 2;
   const revisarFinal = () => {
-    if (apagado || !alFinal()) return;
-    [...vivas.values()].forEach((v) => v.final());
-    revisar();
+    if (apagado) return;
+    [...vivas.values()].forEach((v) => (v.limpiar(), v.arriba()));
+    revisar(); // también por si un salto de scroll pasó de largo una sección sin que su IntersectionObserver avisara
+    if (alFinal()) [...vivas.values()].forEach((v) => v.final());
   };
   const revisar = () => {
     if (apagado) return;
@@ -924,7 +1011,7 @@ function secciones() {
     "scroll",
     () => {
       clearTimeout(espera);
-      espera = setTimeout(revisarFinal, 140);
+      espera = setTimeout(revisarFinal, 90);
     },
     { passive: true },
   );

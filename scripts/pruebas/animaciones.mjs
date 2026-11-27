@@ -3,15 +3,18 @@
   animaciones: las dos animaciones de la home y de las páginas de giro (issues #7 y #8; comparten hero), contra el servidor de pruebas (con la CSP de producción).
     1. Entrada del hero, «un equipo de cursores»: en cada carga (sin memoria de visitas), 3 cursores (Procesos, Backend, Soporte: arman la hoja, los botones y la línea naranja) y el botón «Saltar»,
        termina sola en 4 s como máximo y deja todo visible y sin residuos.
-    2. Secciones (#31): los mismos cursores arman cada sección una sola vez por carga, al entrar ~30 % en pantalla (líneas, bordes, marcas de corte,
+    2. Secciones (#31, #38): los mismos cursores arman cada sección una sola vez por carga: la sección queda activa al entrar ~10 % en pantalla y cada pieza se arma, con su cursor, cuando ELLA está a la vista (líneas, bordes, marcas de corte,
        la línea de las seis etapas, el resaltado de la fila del diagnóstico y las capturas dentro de su marco); el texto nunca se esconde;
        «Saltar» (o Escape) los apaga en toda la página durante esa visita; sin JS, con movimiento reducido o al imprimir, todo armado.
-  Secciones, en 1280×800 y 390×844: cada una se arma una sola vez y en 1.5 s como máximo (1 s en celular), con 2 o 3 cursores (2 en celular, aria-hidden,
+  Secciones, en 1280×800 y 390×844: cada una se arma una sola vez, con 4 s de animación como máximo (2.5 s en celular; sin contar esperas a que su pieza esté a la vista) y pasos de 180 ms o más (no es un barrido), con 1 a 3 cursores (2 en celular, aria-hidden,
     pointer-events:none, sin scroll horizontal); a mitad de la animación todo su texto está a opacidad 1; solo se animan transform y opacity; scroll rápido
     hasta el final: lo que quedó atrás se arma al instante y nada queda desarmado; «Saltar» y Escape; movimiento reducido, sin JS e impresión: todo armado;
     carga con ancla a una sección intermedia: lo de arriba está armado; foco de teclado en una sección sin armar: se arma al instante; el JS falla: todo armado;
     umbral (#35): con el borde superior ~5 % adentro de la pantalla no se arma y con ~15 % sí; impresión a mitad de las etapas y a mitad de trabajo (capturas y marcas);
     «reducir movimiento» activado a mitad de una sección: se apaga todo al instante, sin cursores sueltos ni cambio de alto.
+  Lector tranquilo (#38, sin `irA`): rueda a 333 px/s, pasos con pausas de 1 a 2 s, 1000 y 4000 px/s, en home y /vidrierias/: nada se arma fuera de pantalla por abajo, toda pieza que se dibuja a la vista
+    tiene un cursor cerca, nunca más de 3 cursores en pantalla (2 en celular), la espera de una pieza visible se mide y reporta, y al final todo queda armado. Lector quieto, redimensionar/rotar a mitad,
+    esquinas del trazo (mismo radio y anillo que el estado final). `--mutacion` demuestra que la prueba falla si se vuelve al armado forzado por tiempo; `--solo-lector` corre solo el lector tranquilo.
   El H1 y su párrafo se revisan cuadro a cuadro desde el primer pintado (no solo a mitad de la entrada).
   Comprueba, en 1280×800 y 390×844 (cada caso en un contexto nuevo):
     - primera visita: el H1 y su párrafo visibles desde el primer pintado (opacidad 1, sin recorte, sin transform) mientras corren los cursores,
@@ -293,7 +296,7 @@ const SONDA_CURSORES = () => {
       if (e === "corre" && tLista.has(el)) S.esperas.push(Math.round(t - tLista.get(el)));
       // Una pieza que se arma estando ABAJO de la pantalla (corre), o una «arriba» que en realidad no lo está.
       if (e === "corre" && r.top > innerHeight && S.armadoAbajo.length < 6) S.armadoAbajo.push(`pieza armándose por abajo de la pantalla (top ${Math.round(r.top)} > ${innerHeight}) a ${Math.round(t)} ms`);
-      if (e === "arriba" && r.bottom > 100 && S.armadoAbajo.length < 6) S.armadoAbajo.push(`pieza armada «al instante» sin estar arriba (bottom ${Math.round(r.bottom)}) a ${Math.round(t)} ms`);
+      if (e === "arriba" && r.top > 100 && S.armadoAbajo.length < 6) S.armadoAbajo.push(`pieza armada «al instante» sin estar arriba (top ${Math.round(r.top)}) a ${Math.round(t)} ms`);
     }
   }).observe(document, { subtree: true, attributes: true, attributeFilter: ["data-estado"] });
   const vistas = new WeakMap();
@@ -332,7 +335,9 @@ const SONDA_CURSORES = () => {
       const sec = el.closest("main > section");
       const nombre = sec.id || sec.className.split(" ")[0];
       const esSombra = el.classList.contains("arma-capa--sombra");
-      const prog = esSombra ? Number(getComputedStyle(el).opacity) : escala(el);
+      const esAnillo = el.classList.contains("arma-capa--anillo");
+      // El anillo se dibuja con clip-path: «0» mientras no recorta nada visible y «0.5» desde que se ve algo (su avance lo cubren las demás capas del paso).
+      const prog = esSombra ? Number(getComputedStyle(el).opacity) : esAnillo ? ((m) => (m && el.offsetWidth - Number(m[2]) - Number(m[4]) > 0.5 && el.offsetHeight - Number(m[1]) - Number(m[3]) > 0.5 ? 0.5 : 0))(getComputedStyle(el).clipPath.match(/inset\((-?[\d.]+)px (-?[\d.]+)px (-?[\d.]+)px (-?[\d.]+)px/)) : escala(el);
       const r = el.getBoundingClientRect();
       if (prog > 0.02 && !vistas.has(el)) {
         vistas.set(el, ahora);
@@ -347,7 +352,7 @@ const SONDA_CURSORES = () => {
         if (!ok) S.desalineadas.push(`${nombre}: anillo en (${Math.round(r.left)}, ${Math.round(r.top)}) ${Math.round(r.width)}×${Math.round(r.height)} sin tarjeta debajo`);
       }
       const aVista = r.bottom > 90 && r.top < innerHeight - 60 && r.right > 0 && r.left < innerWidth;
-      if (!esSombra && prog > 0.04 && prog < 0.96 && aVista && r.width * r.height > 0) {
+      if (!esSombra && !esAnillo && prog > 0.04 && prog < 0.96 && aVista && r.width * r.height > 0) {
         // El cursor y la línea se muestrean en el mismo cuadro, pero una línea rápida cruza hasta 350 px por cuadro: vale la punta de este cuadro o la del anterior.
         const largo = Math.max(el.offsetWidth, el.offsetHeight); // en 45 ms una línea de 400 px avanza 140 px por cuadro: la tolerancia crece con la velocidad
         const cerca = [...puntas, ...antes].some((p) => dist(p.x, p.y, r) < 90 + 0.35 * largo);
@@ -642,7 +647,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
       const en = `@${vp.width}px`;
       const chico = vp.width < 768;
       const maxMs = chico ? 2500 : 4000; // tiempo de animación por sección (decisión del dueño): 4 s en escritorio, 2.5 s en celular
-      const minPaso = 250; // ms: un paso (el cursor llega, dibuja) nunca dura menos: se lee como un dibujo, no como un barrido
+      const minPaso = 180; // ms: un paso (el cursor llega, dibuja) nunca dura menos: se lee como un dibujo, no como un barrido
       const abrirSec = async (opciones = {}, destino = ruta) => {
         const c = await abrir({ viewport: vp, ...opciones });
         await c.ctx.addInitScript(SONDA_SECCIONES);
@@ -698,6 +703,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
           const mutado = fuente.replace(ancla, "      relojes.add(setTimeout(() => pasos.forEach((st) => { if (st.estado === 'espera') { st.io.disconnect(); instante(st); } }), LIM - 70));\n" + ancla);
           await c.ctx.route(/\/assets\/js\/main\.js/, (r) => r.fulfill({ ...JS, body: mutado }));
         }
+        await c.ctx.addInitScript(SONDA_SECCIONES);
         await c.ctx.addInitScript(SONDA_CURSORES);
         const page = await c.ctx.newPage();
         await page.goto(servidor.url + ruta, { waitUntil: "load" });
@@ -732,6 +738,16 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         for (const m of R.sobre) falla(nombre, `demasiados cursores en pantalla: ${m}`);
         for (const m of R.desalineadas) falla(nombre, `capa desalineada: ${m}`);
         if (R.muestras < 20 && !a["mutacion"]) falla(nombre, `casi no hubo cursores (${R.muestras} cuadros): la prueba no vio nada`);
+        // Tiempo de animación por sección y duración de cada paso, también con este lector.
+        const SEC = await page.evaluate(() => window.__sec.s);
+        const nombres = await page.evaluate(() => [...document.querySelectorAll("main > section")].map((s) => s.id || s.className.split(" ")[0]));
+        // Con scroll continuo dos secciones se arman a la vez y comparten la cola global de cursores, así que aquí solo se mira que ningún paso sea un barrido;
+        // el tope de tiempo por sección se mide una sección a la vez (8a) y en este mismo recorrido si el lector es tranquilo (la sección rara vez comparte cursores).
+        for (const [i, r] of Object.entries(SEC)) {
+          const cortos = r.pasos.filter((d) => d < minPaso);
+          if (cortos.length && modo.startsWith("rueda 333")) falla(nombre, `sección «${nombres[i]}»: pasos de ${cortos.join(", ")} ms (mínimo ${minPaso}); pasos ${r.pasos.join(" ")}`);
+          if (r.activo > maxMs * 1.35) falla(nombre, `sección «${nombres[i]}»: ${r.activo.toFixed(0)} ms de animación (máximo ${maxMs}, con 35 % de tolerancia por compartir la cola de cursores con otra sección)`);
+        }
         const peor = R.esperas.length ? Math.max(...R.esperas) : 0;
         if (peor > 1800) falla(nombre, `una pieza a la vista esperó ${peor} ms a empezar (objetivo ~1000, máximo tolerado 1800)`);
         console.log(`  ${nombre}: ${R.muestras} cuadros con cursores, máx ${R.maxVis} a la vez, ${R.esperas.length} pasos con espera (peor ${peor} ms, mediana ${R.esperas.length ? [...R.esperas].sort((x, y) => x - y)[Math.floor(R.esperas.length / 2)] : 0} ms), estados ${JSON.stringify(R.estados)}`);
@@ -747,10 +763,14 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
       /* 8j. (#35) En el PRIMER cuadro en que cada sección entra en pantalla sus piezas visuales están SIN armar (estilos computados) y al final están armadas.
              Guarda un PNG por sección en salida/animaciones/ (primer cuadro, a mitad y armado). */
       {
-        const { c, page } = await abrirSec();
-        await sinAnimacion(page);
-        const lista = (await secciones(page)).filter((x) => !x.tinta);
+        const { c: c0, page: p0 } = await abrirSec();
+        await sinAnimacion(p0);
+        const lista = (await secciones(p0)).filter((x) => !x.tinta);
+        await cerrar(c0, `consola secciones ${en}`);
         for (const x of lista) {
+          // Cada sección en una página nueva: así ninguna llega ya a medio armar por haber leído la anterior.
+          const { c, page } = await abrirSec();
+          await sinAnimacion(page);
           // La sección está justo debajo de la pantalla (sin entrar) y de golpe asoma 2 px: se lee el primer cuadro.
           await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; window.scrollTo(0, window.scrollY + s.getBoundingClientRect().top - innerHeight - 4); }, x.i);
           await page.waitForTimeout(120);
@@ -770,9 +790,8 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
           await page.screenshot({ path: `${base}-3-armado.png` });
           const fin = await page.evaluate((n) => { const s = document.querySelectorAll("main > section")[n]; return { armada: s.classList.contains("armada"), anims: s.getAnimations({ subtree: true }).length, capas: s.querySelectorAll(".cursores-seccion").length }; }, x.i);
           if (!fin.armada || fin.anims || fin.capas) falla(`armado al final ${x.nombre} ${en}`, `armada ${fin.armada}, animaciones activas ${fin.anims}, capas ${fin.capas}`);
+          await cerrar(c, `consola primer cuadro ${x.nombre} ${en}`);
         }
-        for (const m of await page.evaluate(ESTADO_ARMADO)) falla(`armado al final ${en}`, m);
-        await cerrar(c, `consola primer cuadro ${en}`);
       }
 
       /* 8k. (#35) Cursor y pieza sincronizados, en secuencia, etiquetas fuera de los títulos y ningún cursor visible con su objetivo fuera de la pantalla. */
@@ -876,7 +895,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
           if (!(await page.evaluate(() => !!document.querySelector(".cursores-seccion .arma-capa")))) falla(`redimensionar ${en}→${ancho2}`, "no había capas a mitad del armado");
           await page.setViewportSize({ width: ancho2, height: alto2 });
           await page.waitForTimeout(250);
-          const r = await page.evaluate((n) => ({ capas: document.querySelectorAll(".arma-capa, .cursor").length, armada: document.querySelectorAll("main > section")[n].classList.contains("armada") }), x.i);
+          const r = await page.evaluate((n) => ({ capas: document.querySelectorAll("main > section")[n].querySelectorAll(".arma-capa, .cursor").length, armada: document.querySelectorAll("main > section")[n].classList.contains("armada") }), x.i);
           if (r.capas || !r.armada) falla(`redimensionar ${en}→${ancho2}`, `lo que estaba en curso debía completarse al instante (capas/cursores ${r.capas}, armada ${r.armada})`);
           // Lo que sigue se calcula con el tamaño nuevo y se arma bien.
           const resto = lista.filter((y) => y.i > x.i);
@@ -905,10 +924,13 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
             const caja = s.querySelector(".captura, .hoja");
             const ring = s.querySelector(".arma-capa--anillo");
             if (!ring) return { sinAnillo: true };
-            const cc = getComputedStyle(caja);
+            // El estado final de la tarjeta se lee con la sección armada (mientras no lo está, su borde real está oculto): se arma un instante y se desarma.
+            s.classList.add("armada");
+            const finalCaja = { borderTopLeftRadius: getComputedStyle(caja).borderTopLeftRadius, boxShadow: getComputedStyle(caja).boxShadow };
+            s.classList.remove("armada");
             const cr = getComputedStyle(ring);
             const anillo = (bs) => (bs.match(/rgba?\([^)]*\) 0px 0px 0px 1px/) || [""])[0];
-            return { radioCaja: cc.borderTopLeftRadius, radioAnillo: cr.borderTopLeftRadius, anilloCaja: anillo(cc.boxShadow), anilloCapa: anillo(cr.boxShadow) };
+            return { radioCaja: finalCaja.borderTopLeftRadius, radioAnillo: cr.borderTopLeftRadius, anilloCaja: anillo(finalCaja.boxShadow), anilloCapa: anillo(cr.boxShadow) };
           });
           if (r.sinAnillo) falla(`esquinas ${en}`, "no había anillo dibujándose en la tarjeta");
           else {
