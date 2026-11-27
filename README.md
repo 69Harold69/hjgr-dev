@@ -69,7 +69,7 @@ Herramientas que escriben en los `.html` (todas aceptan `--check`, que no escrib
 - `python3 scripts/giros.py`: genera cada página de giro (`<giro>/index.html`) desde `index.html` (plantilla, con marcas `data-giro`) y `scripts/giros/<giro>.json`. Esquema en `scripts/giros/LEEME.md`. Si a la plantilla le falta una marca, falla con un mensaje claro y no escribe nada.
 - `python3 scripts/versionar.py`: sella `?v=<hash>` en los CSS y JS propios. Córralo cada vez que cambie algo de `assets/css` o `assets/js`.
 - `python3 scripts/dominio.py [--origen https://x.y]`: reescribe canonical, `og:url`, `og:image`, Twitter, JSON-LD, `sitemap.xml` y `robots.txt` según `origen` de `scripts/sitio.json`. Los hosts externos permitidos viven en `scripts/hosts-externos.json`.
-- `python3 scripts/contacto.py [--exigir-reales]`: escribe el `href` de los `<a data-contacto="whatsapp">` y `<a data-contacto="cal">` a partir de `scripts/sitio.json`. Mientras `whatsapp`, `cal` o `foto` sean marcadores (`52XXXXXXXXXX`, `PENDIENTE`) avisa; `--exigir-reales` falla si queda alguno en `sitio.json` o en cualquier `.html` (también el hueco «Foto pendiente», que se quita a mano de `index.html`).
+- `python3 scripts/contacto.py [--exigir-reales]`: escribe el `href` de los `<a data-contacto="whatsapp">` y `<a data-contacto="cal">` a partir de `scripts/sitio.json`; los dos abren en pestaña nueva (`target="_blank" rel="noopener"`). Mientras `whatsapp`, `cal` o `foto` sean marcadores (`52XXXXXXXXXX`, `PENDIENTE`) avisa; `--exigir-reales` falla si queda alguno en `sitio.json` o en cualquier `.html` (también el hueco «Foto pendiente», que se quita a mano de `index.html`).
 
 ### Cómo cambiar un texto
 

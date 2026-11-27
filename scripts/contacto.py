@@ -5,7 +5,7 @@ El sitio no tiene build ni formularios: los contactos son enlaces. Para que el n
 WhatsApp y la agenda vivan en UN solo lugar, en los .html se marcan los enlaces y este script
 les escribe el `href`:
 
-  <a data-contacto="whatsapp">  ->  href="https://wa.me/<whatsapp>?text=<mensaje codificado>"
+  <a data-contacto="whatsapp">  ->  href="https://wa.me/<whatsapp>?text=<mensaje codificado>", target="_blank" rel="noopener" (pestaña nueva)
   <a data-contacto="cal">       ->  href="<cal>", target="_blank" rel="noopener" (se abre en pestaña nueva)
   <a data-contacto="correo">    ->  href="mailto:<correo>"  (el texto visible lo escribe usted; la clave `correo` es opcional)
   <time data-aviso-vigente>     ->  <time data-aviso-vigente datetime="AAAA-MM-DD">26 de noviembre de 2026</time>
@@ -134,7 +134,7 @@ def procesar(texto, urls, nombre, errores, sitio=None):
         if tipo not in urls:
             errores.append(f"{nombre}: data-contacto=\"{tipo}\" desconocido (use: {', '.join(urls)})")
             return etq
-        return poner_href(etq, urls[tipo], nueva_pestana=(tipo == "cal"))
+        return poner_href(etq, urls[tipo], nueva_pestana=(tipo in ("whatsapp", "cal")))
 
     texto = RE_A.sub(uno, texto)
     return poner_vigencia(texto, sitio, nombre, errores) if sitio is not None else texto

@@ -283,7 +283,20 @@ class PruebasContacto(SitioTemporal):
         # idempotente: no duplica atributos
         r = py("contacto.py", "--raiz", str(self.raiz))
         self.assertIn("0 archivo(s)", r.stdout)
-        self.assertEqual(self.leer("index.html").count("target="), 1)
+        self.assertEqual(self.leer("index.html").count("target="), 2)  # el de Cal.com y el de WhatsApp, sin duplicar
+
+    def test_whatsapp_abre_en_pestana_nueva(self):
+        # Igual que Cal.com: todo data-contacto="whatsapp" lleva target="_blank" rel="noopener" (y sin duplicarlos).
+        wa = f'href="https://wa.me/5215500000000?text={MENSAJE_CODIFICADO}"'
+        viejo = f'<a class="boton" data-contacto="whatsapp" {wa} target="_blank" rel="noopener">'
+        self.assertIn(viejo, self.leer("index.html"), "fixtures/bueno debe traer WhatsApp en pestaña nueva")
+        self.escribir("index.html", self.leer("index.html").replace(viejo, f'<a class="boton" data-contacto="whatsapp" {wa}>'))
+        self.assertEqual(py("contacto.py", "--check", "--raiz", str(self.raiz)).returncode, 1)
+        self.assertEqual(py("contacto.py", "--raiz", str(self.raiz)).returncode, 0)
+        self.assertIn(viejo, self.leer("index.html"))
+        r = py("contacto.py", "--raiz", str(self.raiz))
+        self.assertIn("0 archivo(s)", r.stdout)
+        self.assertEqual(self.leer("index.html").count('target="_blank"'), self.leer("index.html").count("data-contacto=\"whatsapp\"") + self.leer("index.html").count("data-contacto=\"cal\""))
 
     def test_correo_sale_de_sitio_json(self):
         sitio = json.loads(self.leer("scripts/sitio.json"))
