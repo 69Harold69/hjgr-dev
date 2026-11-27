@@ -411,6 +411,7 @@ const PLANES = [
         const q = h.r(tr);
         if (q.h > 0) lineas.push([q.b - 1, ""]);
       });
+      lineas.sort((a, b) => a[0] - b[0]); // de arriba abajo, sea cual sea el orden del DOM
       // Serpentina: una línea de izquierda a derecha y la siguiente de derecha a izquierda; el cursor casi no viaja.
       lineas.forEach(([y, clase], i) => {
         const atras = i % 2 === 1;
@@ -570,7 +571,7 @@ function secciones() {
       const dentro = (puntos) => {
         const q = s.getBoundingClientRect();
         const [, x, y] = puntos[0];
-        return q.top + y >= BARRA + 8 && q.top + y <= innerHeight - 60 && q.left + x >= 0 && q.left + x <= innerWidth - 24;
+        return q.top + y >= BARRA + 8 && q.top + y <= innerHeight - 60 && q.left + x >= -30 && q.left + x <= innerWidth + 30; // la punta se acerca al borde pero no se pega (ver enX)
       };
       const anim = (el, kf, op, pseudo) => {
         const a = el.animate(kf, { fill: "both", easing: "linear", ...op, ...(pseudo ? { pseudoElement: pseudo } : {}) });
