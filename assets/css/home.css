@@ -803,22 +803,28 @@
       opacity: 0;
     }
 
-    /* «Saltar»: botón real, siempre alcanzable, 44 px o más. */
+    /* «Saltar animación (Esc)»: botón real, primer elemento del orden de foco. Fondo sólido de tinta, visualmente chico (28 px de alto)
+       con una caja de 44 px o más: el borde transparente de 8 px (background-clip: padding-box) es el área táctil extra.
+       Esquina fija abajo a la derecha con margen seguro (env(safe-area-inset-*)). */
     .entrada__saltar {
       position: fixed;
-      right: 16px;
-      bottom: 16px;
       z-index: 31;
+      inset-block-end: max(0.5rem, env(safe-area-inset-bottom, 0px));
+      inset-inline-end: max(0.5rem, env(safe-area-inset-right, 0px));
       min-width: var(--toque);
       min-height: var(--toque);
-      padding: 0.625rem 1.25rem;
-      border: 1px solid var(--ink);
-      border-radius: var(--radius);
-      background: var(--paper-hi);
-      color: var(--ink);
-      font-size: var(--texto);
+      padding: 0.25rem 0.75rem;
+      border: 8px solid transparent;
+      border-radius: calc(var(--radius) + 8px);
+      background-color: var(--ink);
+      background-clip: padding-box;
+      color: var(--paper);
+      font-family: var(--font-body);
+      font-size: var(--texto-chico);
       font-weight: 500;
       line-height: 1.2;
+      white-space: nowrap;
+      cursor: pointer;
     }
 
     @media screen {

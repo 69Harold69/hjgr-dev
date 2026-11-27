@@ -48,26 +48,40 @@ function crearCursor(rol) {
   return { el, svg, etiqueta, clase: rol.clase };
 }
 
-/* Un solo botón «Saltar» para toda la visita: sale con el hero y con cada sección que se arma, y se queda 1.5 s después. */
+/* Un solo botón «Saltar animación (Esc)» para toda la visita: sale con el hero y con cada sección que se arma, y se queda 1.5 s después.
+   Va como PRIMER hijo de <body>: es lo primero que alcanza el Tab mientras exista (el enlace «Saltar al contenido» queda justo
+   después, como segundo Tab). Su sitio es una esquina fija (abajo a la derecha) con margen seguro; no cambia de lugar durante la visita. */
 let saltarEl = null;
 let saltarReloj = 0;
+
 function saltarMostrar() {
   clearTimeout(saltarReloj);
   if (saltarEl || apagado) return saltarEl;
   saltarEl = document.createElement("button");
   saltarEl.type = "button";
   saltarEl.className = "entrada__saltar";
-  saltarEl.textContent = "Saltar";
+  saltarEl.textContent = "Saltar animación (Esc)";
   saltarEl.addEventListener("click", () => apagar());
-  document.body.append(saltarEl);
+  document.body.prepend(saltarEl);
   return saltarEl;
+}
+function saltarQuitar() {
+  if (!saltarEl) return;
+  // Si tenía el foco, el siguiente Tab debe empezar en el inicio del documento (el enlace «Saltar al contenido»), no en un lugar raro.
+  const teniaFoco = document.activeElement === saltarEl;
+  saltarEl.remove();
+  saltarEl = null;
+  if (teniaFoco) {
+    document.body.setAttribute("tabindex", "-1");
+    document.body.focus({ preventScroll: true });
+    document.body.removeAttribute("tabindex");
+  }
 }
 function saltarOcultar(ms = 0) {
   clearTimeout(saltarReloj);
   const quitar = () => {
     if (html.classList.contains("js-entrada") || sesiones.size) return;
-    if (saltarEl) saltarEl.remove();
-    saltarEl = null;
+    saltarQuitar();
   };
   if (ms) saltarReloj = setTimeout(quitar, ms);
   else quitar();
@@ -119,6 +133,7 @@ function entrada() {
   /* --- Cierre: todo vuelve a su estado normal, al instante --- */
   function fin(e) {
     if (e && saltar && e.target === saltar) return; // el clic de «Saltar» lo atiende su propio manejador (apagar)
+    if (e && e.type === "keydown" && e.key === "Tab") return; // Tab solo mueve el foco (primero a «Saltar»): no termina la entrada
     if (hecho) return;
     hecho = true;
     clearTimeout(reloj);

@@ -36,8 +36,9 @@
 import { conPaginas, leerArgs, salir } from "./lib/comun.mjs";
 
 const a = leerArgs();
-if (a.ayuda || a.help) salir(0, "Uso: node animaciones.mjs [--raiz DIR] [--solo-secciones]");
-const soloSecciones = !!a["solo-secciones"]; // para iterar: salta el hero y las fallas simuladas
+if (a.ayuda || a.help) salir(0, "Uso: node animaciones.mjs [--raiz DIR] [--solo-secciones] [--solo-saltar]");
+const soloSaltar = !!a["solo-saltar"]; // para iterar: solo «Saltar animación (Esc)»
+const soloSecciones = !!a["solo-secciones"] || soloSaltar; // para iterar: salta el hero y las fallas simuladas
 
 const VIEWPORTS = [
   { width: 1280, height: 800 },
@@ -215,6 +216,40 @@ const SONDA_SECCIONES = () => {
   else arrancar();
 };
 
+
+/* Sonda de «Saltar»: cuadro a cuadro mientras el botón existe, cuánto texto visible tapa (intersección con cada línea de texto), en qué esquina está y qué hay en la pantalla. */
+const SONDA_SALTAR = () => {
+  const S = (window.__saltar = { cuadros: 0, choques: [], esquinas: {}, textos: new Set() });
+  const cajas = () => {
+    const f = [];
+    const paseo = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const rango = document.createRange();
+    for (let n = paseo.nextNode(); n; n = paseo.nextNode()) {
+      const p = n.parentElement;
+      if (!n.nodeValue.trim() || !p || p.closest(".entrada, .cursores-seccion, .entrada__saltar, .solo-lectores, .salto, script, style, noscript")) continue;
+      rango.selectNodeContents(n);
+      for (const r of rango.getClientRects()) if (r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth) f.push({ r, t: n.nodeValue.trim().slice(0, 28) });
+    }
+    return f;
+  };
+  const cuadro = () => {
+    const b = document.querySelector(".entrada__saltar");
+    if (b) {
+      S.cuadros++;
+      const q = b.getBoundingClientRect();
+      const sitio = `${Math.round(q.left)},${Math.round(q.top)}`;
+      S.esquinas[sitio] = (S.esquinas[sitio] || 0) + 1; // debe ser un solo sitio: el botón no salta de lugar
+      for (const { r, t } of cajas()) {
+        const w = Math.min(q.right, r.right) - Math.max(q.left, r.left);
+        const h = Math.min(q.bottom, r.bottom) - Math.max(q.top, r.top);
+        if (w > 1 && h > 1 && S.choques.length < 6) S.choques.push(`«${t}» (${Math.round(w)}×${Math.round(h)} px) con el botón en ${sitio} a scrollY ${Math.round(scrollY)}`);
+      }
+    }
+    requestAnimationFrame(cuadro);
+  };
+  addEventListener("DOMContentLoaded", () => requestAnimationFrame(cuadro));
+};
+
 await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla: fallaBase }) => {
   let falla = fallaBase;
   // Páginas con el hero de la home: la home y las de giro.
@@ -274,7 +309,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         for (const m of await page.evaluate(() => window.__textoOculto)) falla(`primera visita ${en} desde el primer pintado`, `texto del hero no visible: ${m}`);
         const dentro = await page.evaluate(() => {
           const cursores = [...document.querySelectorAll(".cursor")];
-          const saltar = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Saltar");
+          const saltar = document.querySelector("button.entrada__saltar");
           const r = saltar?.getBoundingClientRect();
           const tapados = [...document.querySelectorAll(".hero__acciones .boton")]
             .map((b) => {
@@ -461,7 +496,7 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
 
 
     /* 8. Secciones (#31): se arman una sola vez al entrar en pantalla, con 2 o 3 cursores. */
-    for (const vp of VIEWPORTS) {
+    for (const vp of soloSaltar ? [] : VIEWPORTS) {
       const en = `@${vp.width}px`;
       const chico = vp.width < 768;
       const maxMs = chico ? 1000 : 1500;
@@ -683,6 +718,82 @@ await conPaginas("animaciones", a, async ({ paginas, servidor, navegador, falla:
         for (const m of await page.evaluate(ESTADO_ARMADO)) falla(`reducir movimiento a mitad ${en}`, m);
         await cerrar(c, `consola reducir movimiento a mitad ${en}`);
       }
+    }
+
+
+    /* 9. «Saltar animación (Esc)»: texto, aspecto, primer Tab, foco al desaparecer y que no tape texto (320, 390, 768, 1280 y 1920 px). */
+    if (!a["solo-secciones"]) {
+      const c0 = await abrir({ viewport: { width: 1280, height: 800 } });
+      const page = await c0.ctx.newPage();
+      await page.goto(servidor.url + ruta, { waitUntil: "domcontentloaded" });
+      await page.waitForSelector(".entrada__saltar", { timeout: 2000 });
+      const b = await page.evaluate(() => {
+        const e = document.querySelector(".entrada__saltar");
+        const cs = getComputedStyle(e);
+        const r = e.getBoundingClientRect();
+        // La parte pintada es el padding box (background-clip: padding-box); el borde transparente es solo área táctil.
+        const bw = parseFloat(cs.borderTopWidth);
+        return { tag: e.tagName, texto: e.textContent.trim(), fondo: cs.backgroundColor, clip: cs.backgroundClip, caja: [r.width, r.height], visual: [r.width - 2 * bw, r.height - 2 * bw], pos: cs.position, primero: document.body.firstElementChild === e, borde: cs.borderTopColor };
+      });
+      if (b.texto !== "Saltar animación (Esc)") falla("«Saltar»", `el texto visible debe ser «Saltar animación (Esc)» y es «${b.texto}»`);
+      if (b.tag !== "BUTTON" || b.pos !== "fixed") falla("«Saltar»", `debe ser un <button> fijo (${b.tag}, ${b.pos})`);
+      if (/rgba\(.*, 0\)|transparent/.test(b.fondo)) falla("«Saltar»", `el fondo debe ser sólido y es ${b.fondo}`);
+      if (b.caja[0] < 44 || b.caja[1] < 44) falla("«Saltar»", `el área táctil (caja del botón) debe medir 44×44 o más y mide ${b.caja.map((x) => x.toFixed(1)).join("×")}`);
+      if (b.visual[1] >= 44) falla("«Saltar»", `visualmente debe ser más chico que 44 px de alto y es ${b.visual[1].toFixed(1)}`);
+      if (!b.primero) falla("«Saltar»", "debe ser el primer elemento del <body> (primero en el orden de foco)");
+      // El primer Tab lo alcanza; el segundo llega al enlace «Saltar al contenido» (no se rompe).
+      await page.keyboard.press("Tab");
+      const t1 = await page.evaluate(() => document.activeElement?.className + "|" + document.activeElement?.textContent.trim());
+      if (!/entrada__saltar\|Saltar animación \(Esc\)/.test(t1)) falla("«Saltar» orden de foco", `el primer Tab debe llegar a «Saltar animación (Esc)» y llegó a ${t1}`);
+      await page.keyboard.press("Tab");
+      const t2 = await page.evaluate(() => document.activeElement?.className + "|" + document.activeElement?.textContent.trim());
+      if (!/salto\|Saltar al contenido/.test(t2)) falla("«Saltar» orden de foco", `el segundo Tab debe llegar al enlace «Saltar al contenido» y llegó a ${t2}`);
+      await page.keyboard.press("Shift+Tab");
+      // Foco en «Saltar» y el botón desaparece (Enter): el siguiente Tab empieza en el inicio del documento (el enlace «Saltar al contenido»).
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(150);
+      if (await page.evaluate(() => !!document.querySelector(".entrada__saltar"))) falla("«Saltar» foco", "Enter en el botón no lo quitó");
+      await page.keyboard.press("Tab");
+      const t3 = await page.evaluate(() => document.activeElement?.className + "|" + document.activeElement?.textContent.trim());
+      if (!/salto\|Saltar al contenido/.test(t3)) falla("«Saltar» foco", `al desaparecer con el foco encima, el siguiente Tab debe empezar en el inicio del documento («Saltar al contenido») y llegó a ${t3}`);
+      await cerrar(c0, "consola «Saltar» foco");
+
+      // Desaparece solo (sin clic) estando enfocado: mismo resultado.
+      const c1 = await abrir({ viewport: { width: 1280, height: 800 } });
+      const p1 = await c1.ctx.newPage();
+      await p1.goto(servidor.url + ruta, { waitUntil: "domcontentloaded" });
+      await p1.waitForSelector(".entrada__saltar", { timeout: 2000 });
+      await p1.keyboard.press("Tab");
+      await p1.waitForFunction(() => !document.querySelector(".entrada__saltar"), null, { timeout: 9000, polling: 100 });
+      await p1.keyboard.press("Tab");
+      const t4 = await p1.evaluate(() => document.activeElement?.className + "|" + document.activeElement?.textContent.trim());
+      if (!/salto\|Saltar al contenido/.test(t4)) falla("«Saltar» foco", `al desaparecer solo con el foco encima, el siguiente Tab debe empezar en el inicio del documento y llegó a ${t4}`);
+      await cerrar(c1, "consola «Saltar» desaparece");
+    }
+
+    for (const ancho of a["solo-secciones"] ? [] : [320, 390, 768, 1280, 1920]) {
+      // Intersección del botón con las líneas de texto visibles, cuadro a cuadro: durante el hero y durante una lectura pausada de toda la página.
+      const c = await abrir({ viewport: { width: ancho, height: ancho < 700 ? 800 : 900 } });
+      await c.ctx.addInitScript(SONDA_SALTAR);
+      const page = await c.ctx.newPage();
+      await page.goto(servidor.url + ruta, { waitUntil: "domcontentloaded" });
+      await page.waitForFunction(() => !document.querySelector(".entrada") && !document.documentElement.classList.contains("js-entrada"), null, { polling: "raf", timeout: 7000 });
+      await page.evaluate(async () => {
+        const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+        for (let y = 0; y < document.documentElement.scrollHeight; y += 20) {
+          window.scrollTo(0, y);
+          await espera(30);
+        }
+        await espera(1800);
+      });
+      const S = await page.evaluate(() => ({ cuadros: window.__saltar.cuadros, choques: window.__saltar.choques, esquinas: window.__saltar.esquinas }));
+      if (S.cuadros < 60) falla(`«Saltar» sin tapar texto @${ancho}px`, `la prueba casi no vio el botón (${S.cuadros} cuadros)`);
+      if (Object.keys(S.esquinas).length !== 1) falla(`«Saltar» fijo @${ancho}px`, `el botón cambió de sitio: ${JSON.stringify(S.esquinas)}`);
+      // Un botón fijo pasa por encima del texto que se desplaza debajo en pantallas angostas (el texto ocupa todo el ancho): ahí solo se informa.
+      // Con ancho suficiente (≥ 1920) queda en el margen lateral y no debe tapar nada.
+      if (ancho >= 1920) for (const m of S.choques) falla(`«Saltar» sin tapar texto @${ancho}px`, m);
+      console.log(`  «Saltar» @${ancho}px: ${S.cuadros} cuadros, esquinas ${JSON.stringify(S.esquinas)}, ${S.choques.length} choques`);
+      await cerrar(c, `consola «Saltar» texto @${ancho}px`);
     }
 
     /* 7. El JS falla a mitad: a los 5.5 s todo es visible. */
